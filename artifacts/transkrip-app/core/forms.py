@@ -1,7 +1,14 @@
 from django import forms
+from .models import Kurikulum
 
 
 class GenerateSingleForm(forms.Form):
+    prodi = forms.ChoiceField(
+        required=False,
+        label="Program Studi",
+        choices=[('', 'Otomatis dari data Neo Feeder'), *Kurikulum.PRODI_CHOICES],
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
     nim = forms.CharField(
         max_length=20,
         label="NIM Mahasiswa",
@@ -14,6 +21,12 @@ class GenerateSingleForm(forms.Form):
 
 
 class GenerateBatchForm(forms.Form):
+    prodi = forms.ChoiceField(
+        required=False,
+        label="Program Studi",
+        choices=[('', 'Otomatis dari data Neo Feeder'), *Kurikulum.PRODI_CHOICES],
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
     FILE_CHOICES = [
         ('auto', 'Deteksi otomatis'),
         ('txt', 'Text (.txt) — satu NIM per baris'),
@@ -62,6 +75,6 @@ class RiwayatFilterForm(forms.Form):
     jenjang = forms.ChoiceField(
         required=False,
         label="Jenjang",
-        choices=[('', 'Semua'), ('D3', 'D3'), ('S1', 'S1')],
+        choices=[('', 'Semua'), ('D3', 'D3'), ('S1', 'S1'), ('PROF', 'Profesi')],
         widget=forms.Select(attrs={'class': 'form-select'})
     )

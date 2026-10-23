@@ -100,8 +100,8 @@ class MataKuliahInline(admin.TabularInline):
 
 @admin.register(Kurikulum)
 class KurikulumAdmin(admin.ModelAdmin):
-    list_display = ['jenjang', 'angkatan', 'template', 'jumlah_mk', 'created_at']
-    list_filter = ['jenjang']
+    list_display = ['jenjang', 'prodi', 'angkatan', 'template', 'jumlah_mk', 'created_at']
+    list_filter = ['jenjang', 'prodi']
     inlines = [MataKuliahInline]
     change_list_template = 'admin/core/kurikulum/change_list.html'
 
@@ -130,6 +130,7 @@ class KurikulumAdmin(admin.ModelAdmin):
             if form.is_valid():
                 # Ambil kurikulum yang dipilih atau buat baru
                 jenjang = request.POST.get('jenjang', '')
+                prodi = request.POST.get('prodi', '')
                 angkatan_str = request.POST.get('angkatan', '')
                 template_id = request.POST.get('template', '')
 
@@ -144,7 +145,7 @@ class KurikulumAdmin(admin.ModelAdmin):
                     return redirect(request.path)
 
                 kurikulum, created = Kurikulum.objects.get_or_create(
-                    jenjang=jenjang, angkatan=angkatan
+                    jenjang=jenjang, prodi=prodi, angkatan=angkatan
                 )
                 if template_id:
                     try:
@@ -187,6 +188,7 @@ class KurikulumAdmin(admin.ModelAdmin):
             **self.admin_site.each_context(request),
             'form': form,
             'templates': templates,
+            'prodi_choices': Kurikulum.PRODI_CHOICES,
             'title': 'Upload Excel Kurikulum',
             'opts': self.model._meta,
         }

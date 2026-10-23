@@ -1,0 +1,118 @@
+{% extends "dashboard/base.html" %}
+{% load dash_filters %}
+{% block title %}{{ nim }} - eCampuz{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{% if ringkas %}{{ ringkas.nama }}{% else %}{{ nim }}{% endif %}</h1>
+    <div class="sub">NIM <span class="mono">{{ nim }}</span>
+      {% if ringkas and ringkas.prodi %} &middot; {{ ringkas.prodi }}{% endif %}
+      {% if ringkas and ringkas.angkatan %} &middot; angkatan {{ ringkas.angkatan }}{% endif %}
+    </div>
+  </div>
+  <div class="hero-session">
+    {% if template_available %}
+    <a class="btn small" href="{% url 'dashboard:export_transcript' nim %}">Unduh transkrip Excel</a>
+    {% endif %}
+    <a class="btn small ghost" href="{% url 'dashboard:daftar_mahasiswa' %}">&larr; Daftar mahasiswa</a>
+  </div>
+</div>
+
+<div class="cards">
+  <div class="card">
+    <div class="label">IPK (DHS — mentah)</div>
+    <div class="ipk-hero">
+      {% if ringkas %}{{ ringkas.ipk|fmt:'%.3f' }}{% else %}&mdash;{% endif %}
+    </div>
+    <div class="hint">jumlah MK: {% if ringkas %}{{ ringkas.jumlah_mk }}{% else %}0{% endif %} &middot; total SKS: {% if ringkas %}{{ ringkas.sks|fmt:'%.0f' }}{% else %}0{% endif %}</div>
+  </div>
+  <div class="card">
+    <div class="label">Baris di template Excel</div>
+    <div class="value">{{ excel_rows|length }}</div>
+    <div class="hint">55 baris kurikulum P24 &middot; terisi {{ excel_terisi }}</div>
+  </div>
+  <div class="card">
+    <div class="label">Data eAkademik (JSON)</div>
+    <div class="value small">{% if transcript %}{{ transcript.semesters|length }}{% else %}0{% endif %}</div>
+    <div class="hint">{% if transcript %}semester tersimpan per NIM{% else %}belum ada dhs_{{ nim }}.json{% endif %}</div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="p-head">
+    Template transkrip terisi (sheet "Nilai MHS 2026")
+    <span class="badge info">{{ excel_terisi }}/{{ excel_rows|length }} terisi</span>
+  </div>
+  <div class="p-body" style="padding:0">
+    <table class="tbl">
+      <tr>
+        <th>No</th><th>Kode</th><th>Mata Kuliah</th><th class="num">SKS</th>
+        <th>Semester</th><th class="num">Indeks</th><th class="ctr">Huruf</th><th class="num">SKS&times;Indeks</th>
+      </tr>
+      {% for r in excel_rows %}
+      <tr class="{% if r.terisi %}filled{% endif %}">
+        <td>{{ r.no }}</td>
+        <td class="mono">{{ r.kode }}</td>
+        <td>{{ r.nama_id }}</td>
+        <td class="num">{{ r.sks }}</td>
+        <td>
+          {% if r.semester %}{{ r.semester }}{% else %}<span class="empty-col">kosong</span>{% endif %}
+        </td>
+        <td class="num">{% if r.indeks != '' %}{{ r.indeks }}{% else %}<span class="empty-col">-</span>{% endif %}</td>
+        <td class="ctr">
+          {% if r.huruf %}
+            <span class="gc {{ grade_class|lookup:r.huruf }}">{{ r.huruf }}</span>
+          {% else %}<span class="empty-col">-</span>{% endif %}
+        </td>
+        <td class="num">{% if r.sks_indeks != '' %}{{ r.sks_indeks }}{% else %}<span class="empty-col">-</span>{% endif %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="8" class="empty-col">Tidak ada row untuk NIM ini di file Excel. Periksa path di data/ecampuz/state/web.json.</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+
+{% if transcript %}
+<div class="panel">
+  <div class="p-head">Data asli dari eAkademik (DHS per semester)</div>
+  <div class="p-body">
+    <dl class="kv" style="margin:0 0 12px">
+      {% for k, v in transcript.identity.items %}
+        {% if k not in '12345678' %}{% if v %}<dt>{{ k|title }}</dt><dd>{{ v }}</dd>{% endif %}{% endif %}
+      {% endfor %}
+    </dl>
+    {% for sem in transcript.semesters %}
+    <div class="sem">
+      <h4>{{ sem.semester }}
+        <span class="total">&middot; SKS {{ sem.sks }} &middot; IP {{ sem.ip }}</span>
+      </h4>
+      <table class="tbl">
+        <tr><th>Kode</th><th>Mata Kuliah</th><th>Kelas</th><th class="num">SKS</th><th>Nilai</th><th class="num">Bobot</th><th>Dosen</th><th>Tgl ubah</th></tr>
+        {% for c in sem.courses %}
+        <tr>
+          <td class="mono">{{ c.kode }}</td>
+          <td>{{ c.mata_kuliah }}</td>
+          <td>{{ c.kelas }}</td>
+          <td class="num">{{ c.sks }}</td>
+          <td><span class="gc {{ grade_class|lookup:c.nilai }}">{{ c.nilai }}</span></td>
+          <td class="num">{{ c.bobot }}</td>
+          <td>{{ c.dosen_pengubah }}</td>
+          <td>{{ c.tanggal_ubah }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% else %}
+<div class="panel">
+  <div class="p-head">Data asli dari eAkademik</div>
+  <div class="p-body">
+    <span class="badge gray">JSON per NIM belum ditemukan di data/ecampuz/out/dhs_{{ nim }}.json</span>
+    &nbsp;<a class="btn small" href="{% url 'dashboard:scrape' %}">Ambil via bot</a>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

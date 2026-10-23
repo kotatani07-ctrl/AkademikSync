@@ -5,7 +5,9 @@ Semua view memerlukan login (login_required).
 import io
 import logging
 import time
+import uuid
 from datetime import date
+from pathlib import Path
 
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, JsonResponse
@@ -13,13 +15,15 @@ from django.shortcuts import render, redirect
 from django.contrib import messages
 from django.conf import settings
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 
 from .forms import GenerateSingleForm, GenerateBatchForm, RiwayatFilterForm
 from .models import (
-    Kurikulum, MataKuliahKurikulum, Template, PredikatKelulusan,
+    BatchJob, Kurikulum, MataKuliahKurikulum, Template, PredikatKelulusan,
     DataPendukung, RiwayatGenerate
 )
 from .services import feeder as feeder_service
+from .services.dhs_fallback import get_dhs_nilai_mahasiswa
 from .services.matching import cocokan_nilai, parse_biodata
 from .services.excel_gen import generate_single_excel, generate_batch_excel
 
@@ -67,7 +71,19 @@ def _parse_nim_from_file(f) -> list[str]:
     return result
 
 
-def _proses_satu_nim(nim: str, mode: str, request_user) -> tuple:
+def _prodi_key_from_name(nama_prodi: str) -> str:
+    nama = ' '.join((nama_prodi or '').upper().replace('-', ' ').split())
+    if 'NERS' in nama or 'PROFESI' in nama:
+        return 'PROFESI_NERS'
+    if 'KEPERAWATAN' in nama:
+        return 'ILMU_KEPERAWATAN'
+    for key, label in Kurikulum.PRODI_CHOICES:
+        if nama == label.upper() or label.upper() in nama:
+            return key
+    return ''
+
+
+def _proses_satu_nim(nim: str, mode: str, request_user, prodi_override: str = '') -> tuple:
     """
     Proses satu NIM: fetch data, cocokan, return (HasilPencocokan, data_pendukung, template, cm).
     Simpan ke RiwayatGenerate.
@@ -75,28 +91,56 @@ def _proses_satu_nim(nim: str, mode: str, request_user) -> tuple:
     """
     # 1. Ambil biodata dari Feeder
     biodata_raw = feeder_service.get_biodata_mahasiswa(nim)
-    biodata = parse_biodata(biodata_raw)
+
+    # 1b. Ambil riwayat pendidikan (status kelulusan, tgl lulus, lama studi).
+    #     Data pelengkap: jika gagal (bukan karena Feeder mati) generate tetap jalan.
+    riwayat_pendidikan = {}
+    try:
+        riwayat_pendidikan = feeder_service.get_riwayat_pendidikan(nim)
+    except (ConnectionError, TimeoutError):
+        raise
+    except Exception as e:
+        logger.warning(f"Riwayat pendidikan NIM {nim} tidak tersedia, lanjut tanpa: {e}")
+
+    biodata = parse_biodata(biodata_raw, riwayat_pendidikan)
 
     jenjang = biodata.get('jenjang', '').upper()
     angkatan = biodata.get('angkatan', 0)
+    prodi = prodi_override or _prodi_key_from_name(biodata.get('prodi', ''))
 
     # Normalisasi jenjang (dari Feeder bisa jadi kode angka atau nama lengkap)
-    if jenjang in ('1', 'D1'):
+    if prodi == 'PROFESI_NERS' or 'PROFESI' in jenjang or 'NERS' in jenjang:
+        jenjang = 'PROF'
+    elif jenjang in ('1', 'D1'):
         jenjang = 'D1'
     elif jenjang in ('3', 'D3', 'DIPLOMA TIGA', 'DIPLOMA 3'):
         jenjang = 'D3'
     elif jenjang in ('4', 'S1', 'STRATA SATU', 'SARJANA', 'SARJANA TERAPAN'):
         jenjang = 'S1'
 
-    # 2. Cari Kurikulum
-    try:
-        kurikulum = Kurikulum.objects.select_related('template').get(
-            jenjang=jenjang, angkatan=angkatan
-        )
-    except Kurikulum.DoesNotExist:
+    biodata['jenjang'] = jenjang
+    if prodi:
+        biodata['prodi'] = dict(Kurikulum.PRODI_CHOICES)[prodi]
+
+    # 2. Cari kurikulum berdasarkan jenjang, prodi, dan angkatan.
+    kurikulum_qs = Kurikulum.objects.select_related('template').filter(
+        jenjang=jenjang, angkatan=angkatan
+    )
+    kurikulum = kurikulum_qs.filter(prodi=prodi).first() if prodi else None
+    if kurikulum is None:
+        kurikulum = kurikulum_qs.filter(prodi='').first()
+    if kurikulum is None and not prodi and kurikulum_qs.count() == 1:
+        kurikulum = kurikulum_qs.first()
+    if kurikulum is None:
+        if not kurikulum_qs.exists():
+            raise ValueError(
+                f"Kurikulum untuk jenjang '{jenjang}' angkatan {angkatan} belum ada. "
+                f"Silakan tambahkan di Admin → Kurikulum."
+            )
         raise ValueError(
-            f"Kurikulum untuk jenjang '{jenjang}' angkatan {angkatan} belum ada. "
-            f"Silakan tambahkan di Admin → Kurikulum."
+            f"Kurikulum untuk prodi '{prodi or 'tidak terdeteksi'}', jenjang "
+            f"'{jenjang}' angkatan {angkatan} belum ada. Pilih prodi yang sesuai "
+            f"atau tambahkan kurikulum di Admin → Kurikulum."
         )
 
     if not kurikulum.template:
@@ -110,6 +154,21 @@ def _proses_satu_nim(nim: str, mode: str, request_user) -> tuple:
 
     # 3. Ambil nilai dari Feeder
     daftar_nilai = feeder_service.get_nilai_perkuliahan_mahasiswa(nim)
+
+    # 3b. Fallback: bila Feeder tidak punya data nilai, pakai hasil scraping DHS eCampuz.
+    sumber_nilai = 'feeder'
+    if not daftar_nilai and getattr(settings, 'FALLBACK_DHS_SAAT_FEEDER_KOSONG', True):
+        daftar_nilai = get_dhs_nilai_mahasiswa(nim)
+        if daftar_nilai:
+            sumber_nilai = 'dhs'
+            logger.info(
+                "NIM %s: nilai kosong di Feeder → pakai hasil scraping DHS eCampuz (%d MK)",
+                nim, len(daftar_nilai),
+            )
+        else:
+            logger.info(
+                "NIM %s: nilai kosong di Feeder dan tidak ada data DHS eCampuz.", nim
+            )
 
     # 4. Predikat kelulusan
     predikat_qs = PredikatKelulusan.objects.all()
@@ -128,6 +187,8 @@ def _proses_satu_nim(nim: str, mode: str, request_user) -> tuple:
         predikat_qs=predikat_qs,
         data_pendukung=data_pendukung,
         default_nama_dekan=getattr(settings, 'DEFAULT_NAMA_DEKAN', ''),
+        include_mk_tidak_dikenali=getattr(settings, 'INCLUDE_MK_TAK_DIKENALI', True),
+        sumber_nilai=sumber_nilai,
     )
 
     # 7. Simpan riwayat
@@ -179,17 +240,27 @@ def generate_single(request):
         if form.is_valid():
             nim = form.cleaned_data['nim'].strip()
             try:
-                hasil, data_pendukung, template = _proses_satu_nim(nim, 'single', request.user)
+                hasil, data_pendukung, template = _proses_satu_nim(
+                    nim, 'single', request.user, form.cleaned_data['prodi']
+                )
 
                 # Generate Excel
                 template_path = template.file_excel.path
-                excel_bytes = generate_single_excel(
-                    hasil=hasil,
-                    template_file_path=template_path,
-                    cell_mapping=template.cell_mapping,
-                    data_pendukung=data_pendukung,
-                    default_nama_dekan=getattr(settings, 'DEFAULT_NAMA_DEKAN', ''),
-                )
+                if template.cell_mapping.get('engine') == 'workbook':
+                    # Template formula-driven (workbook kampus): set selector
+                    # NIM dan biarkan formula Excel mengisi transkrip.
+                    from dashboard.services.transcript_export import build_transcript_export
+                    excel_bytes = build_transcript_export(
+                        Path(template_path), nim
+                    ).content
+                else:
+                    excel_bytes = generate_single_excel(
+                        hasil=hasil,
+                        template_file_path=template_path,
+                        cell_mapping=template.cell_mapping,
+                        data_pendukung=data_pendukung,
+                        default_nama_dekan=getattr(settings, 'DEFAULT_NAMA_DEKAN', ''),
+                    )
 
                 filename = f"Transkrip_{nim}_{hasil.nama.replace(' ', '_')}.xlsx"
                 response = HttpResponse(
@@ -223,20 +294,35 @@ def generate_batch(request):
     """Generate transkrip batch dari file daftar NIM."""
     form = GenerateBatchForm()
     hasil_batch = []
+    batch_id = uuid.uuid4()
 
     if request.method == 'POST':
         form = GenerateBatchForm(request.POST, request.FILES)
         if form.is_valid():
+            try:
+                batch_id = uuid.UUID(request.POST.get('batch_id', ''))
+            except ValueError:
+                messages.error(request, "ID proses batch tidak valid. Silakan coba lagi.")
+                return render(request, 'generate_batch.html', {
+                    'form': form,
+                    'hasil_batch': [],
+                    'batch_id': uuid.uuid4(),
+                })
+
             f = request.FILES['file_nim']
             try:
                 daftar_nim = _parse_nim_from_file(f)
             except Exception as e:
                 messages.error(request, f"Gagal membaca file: {e}")
-                return render(request, 'generate_batch.html', {'form': form, 'hasil_batch': []})
+                return render(request, 'generate_batch.html', {
+                    'form': form, 'hasil_batch': [], 'batch_id': uuid.uuid4(),
+                })
 
             if not daftar_nim:
                 messages.warning(request, "File tidak mengandung NIM yang valid.")
-                return render(request, 'generate_batch.html', {'form': form, 'hasil_batch': []})
+                return render(request, 'generate_batch.html', {
+                    'form': form, 'hasil_batch': [], 'batch_id': uuid.uuid4(),
+                })
 
             if len(daftar_nim) > 100:
                 messages.warning(
@@ -246,10 +332,26 @@ def generate_batch(request):
                 )
                 daftar_nim = daftar_nim[:100]
 
+            _, created = BatchJob.objects.get_or_create(
+                id=batch_id, defaults={'requested_by': request.user}
+            )
+            if not created:
+                messages.error(request, "ID proses batch sudah digunakan. Silakan coba lagi.")
+                return render(request, 'generate_batch.html', {
+                    'form': form, 'hasil_batch': [], 'batch_id': uuid.uuid4(),
+                })
+
             daftar_hasil_excel = []  # untuk generate_batch_excel
             for nim in daftar_nim:
+                if BatchJob.objects.filter(
+                    pk=batch_id, status=BatchJob.STATUS_CANCELLED
+                ).exists():
+                    break
+
                 try:
-                    hasil, data_pendukung, template = _proses_satu_nim(nim, 'batch', request.user)
+                    hasil, data_pendukung, template = _proses_satu_nim(
+                        nim, 'batch', request.user, form.cleaned_data['prodi']
+                    )
                     daftar_hasil_excel.append((
                         hasil, data_pendukung,
                         template.file_excel.path,
@@ -262,6 +364,7 @@ def generate_batch(request):
                         'mk_kosong': hasil.jumlah_mk_kosong,
                         'mk_retake': hasil.jumlah_mk_retake,
                         'mk_tidak_dikenali': hasil.jumlah_mk_tidak_dikenali,
+                        'sumber_nilai': hasil.sumber_nilai,
                         'ipk': str(hasil.ipk),
                     })
                 except Exception as e:
@@ -286,6 +389,18 @@ def generate_batch(request):
                 # Jeda kecil antar NIM agar tidak membebani Feeder
                 time.sleep(0.3)
 
+            dibatalkan = BatchJob.objects.filter(
+                pk=batch_id, status=BatchJob.STATUS_CANCELLED
+            ).exists()
+            BatchJob.objects.filter(
+                pk=batch_id, status=BatchJob.STATUS_RUNNING
+            ).update(status=BatchJob.STATUS_COMPLETED)
+            if dibatalkan:
+                messages.warning(
+                    request,
+                    "Batch dibatalkan. NIM yang sudah selesai tetap disertakan dalam hasil.",
+                )
+
             if daftar_hasil_excel:
                 try:
                     excel_bytes = generate_batch_excel(
@@ -304,10 +419,30 @@ def generate_batch(request):
                 except Exception as e:
                     logger.exception(f"Error generate batch Excel: {e}")
                     messages.error(request, f"Gagal membuat file Excel: {e}")
-            else:
+            elif not dibatalkan:
                 messages.error(request, "Semua NIM gagal diproses. Cek log untuk detail.")
 
-    return render(request, 'generate_batch.html', {'form': form, 'hasil_batch': hasil_batch})
+    return render(request, 'generate_batch.html', {
+        'form': form, 'hasil_batch': hasil_batch, 'batch_id': uuid.uuid4(),
+    })
+
+
+@login_required
+@require_POST
+def cancel_generate_batch(request, batch_id):
+    """Request cancellation of an active batch, scoped to its owner."""
+    batch = BatchJob.objects.filter(pk=batch_id, requested_by=request.user).first()
+    if batch is None:
+        return JsonResponse({'error': 'Proses batch tidak ditemukan.'}, status=404)
+
+    BatchJob.objects.filter(
+        pk=batch_id, status=BatchJob.STATUS_RUNNING
+    ).update(status=BatchJob.STATUS_CANCELLED)
+    batch.refresh_from_db()
+    return JsonResponse({
+        'cancelled': batch.status == BatchJob.STATUS_CANCELLED,
+        'status': batch.status,
+    })
 
 
 @login_required

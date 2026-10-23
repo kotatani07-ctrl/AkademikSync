@@ -1,6 +1,6 @@
 # DEV.md — Panduan Setup Lokal
 
-Panduan ini menjelaskan cara menjalankan **Transkrip & Ijazah** di komputer lokal, baik di **Windows** maupun **Linux/macOS**.
+Panduan ini menjelaskan cara menjalankan **AkademikSync** di komputer lokal, baik di **Windows** maupun **Linux/macOS**.
 
 ---
 
@@ -8,7 +8,7 @@ Panduan ini menjelaskan cara menjalankan **Transkrip & Ijazah** di komputer loka
 
 | Kebutuhan | Versi Minimum | Cara Cek |
 |---|---|---|
-| Python | 3.11+ | `python --version` |
+| Python | 3.13+ | `python --version` |
 | pip | terbaru | `pip --version` |
 | Git | terbaru | `git --version` |
 
@@ -38,8 +38,15 @@ cd artifacts/transkrip-app
 Buka **Command Prompt** atau **PowerShell**:
 
 ```cmd
-python -m venv venv
+py -3 -m venv venv
 venv\Scripts\activate
+```
+
+Jika `py` tidak tersedia, gunakan:
+
+```cmd
+python -m venv venv
+python -m venv venv
 ```
 
 Jika muncul error _"execution of scripts is disabled"_ di PowerShell:
@@ -102,6 +109,8 @@ Buka browser: [http://127.0.0.1:8000](http://127.0.0.1:8000)
 ---
 
 ## Setup di Linux / macOS
+
+> Jika Anda sedang memakai Windows, gunakan perintah di bagian sebelumnya: `py -3 -m venv venv` atau `python -m venv venv`. Perintah `python3` biasanya hanya tersedia di Linux/macOS.
 
 ### 1. Buat Virtual Environment
 

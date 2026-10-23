@@ -1,5 +1,7 @@
-from django.db import models
+import uuid
+
 from django.contrib.auth.models import User
+from django.db import models
 
 
 class Template(models.Model):
@@ -39,9 +41,23 @@ class Kurikulum(models.Model):
     JENJANG_CHOICES = [
         ('D3', 'D3'),
         ('S1', 'S1'),
+        ('PROF', 'Profesi'),
+    ]
+    PRODI_CHOICES = [
+        ('ILMU_KEPERAWATAN', 'Ilmu Keperawatan'),
+        ('INFORMATIKA', 'Informatika'),
+        ('KEBIDANAN', 'Kebidanan'),
+        ('MANAJEMEN_RITEL', 'Manajemen Ritel'),
+        ('PERPAJAKAN', 'Perpajakan'),
+        ('PROFESI_NERS', 'Profesi Ners'),
+        ('SISTEM_INFORMASI', 'Sistem Informasi'),
     ]
 
     jenjang = models.CharField(max_length=5, choices=JENJANG_CHOICES, verbose_name="Jenjang")
+    prodi = models.CharField(
+        max_length=40, choices=PRODI_CHOICES, blank=True, default='',
+        verbose_name="Program Studi",
+    )
     angkatan = models.IntegerField(verbose_name="Angkatan (Tahun)")
     template = models.ForeignKey(
         Template, on_delete=models.PROTECT, verbose_name="Template Excel",
@@ -52,11 +68,12 @@ class Kurikulum(models.Model):
     class Meta:
         verbose_name = "Kurikulum"
         verbose_name_plural = "Kurikulum"
-        unique_together = [('jenjang', 'angkatan')]
-        ordering = ['-angkatan', 'jenjang']
+        unique_together = [('jenjang', 'prodi', 'angkatan')]
+        ordering = ['-angkatan', 'jenjang', 'prodi']
 
     def __str__(self):
-        return f"Kurikulum {self.jenjang} Angkatan {self.angkatan}"
+        prodi = self.get_prodi_display() if self.prodi else 'Umum'
+        return f"Kurikulum {prodi} ({self.jenjang}) Angkatan {self.angkatan}"
 
 
 class MataKuliahKurikulum(models.Model):
@@ -151,3 +168,26 @@ class RiwayatGenerate(models.Model):
 
     def __str__(self):
         return f"{self.nim} - {self.status} ({self.generated_at.strftime('%d/%m/%Y %H:%M')})"
+
+
+class BatchJob(models.Model):
+    STATUS_RUNNING = 'running'
+    STATUS_CANCELLED = 'cancelled'
+    STATUS_COMPLETED = 'completed'
+    STATUS_CHOICES = [
+        (STATUS_RUNNING, 'Berjalan'),
+        (STATUS_CANCELLED, 'Dibatalkan'),
+        (STATUS_COMPLETED, 'Selesai'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    requested_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_RUNNING)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Proses Batch"
+        verbose_name_plural = "Proses Batch"
+
+    def __str__(self):
+        return f"Batch {self.id} - {self.status}"

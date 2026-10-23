@@ -1,0 +1,223 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Input Nilai Mahasiswa - eCampuz{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Input Nilai Mahasiswa</h1>
+    <div class="sub">Pemeriksaan dan dry-run nilai dari Excel sebelum pemetaan ke form eCampuz.</div>
+  </div>
+  <span class="badge gray">Belum mengirim perubahan</span>
+</div>
+
+<div class="panel">
+  <div class="p-head">1. Pilih file Excel</div>
+  <div class="p-body">
+    <form id="grade-upload-form" class="webform" enctype="multipart/form-data">
+      {% csrf_token %}
+      <div style="grid-column:1/-1">
+        <label for="grade-file">File nilai (.xlsx / .xlsm)</label>
+        <input id="grade-file" name="workbook" type="file" accept=".xlsx,.xlsm" required>
+      </div>
+      <div>
+        <label for="grade-sheet">Sheet</label>
+        <select id="grade-sheet" name="sheet_name" required disabled></select>
+      </div>
+      <div>
+        <label for="header-row">Baris header</label>
+        <input id="header-row" name="header_row" type="number" min="1" max="10000" value="1" required>
+      </div>
+      <div><button type="button" id="inspect-grade-file" disabled>Periksa kolom</button></div>
+    </form>
+    <p class="hint" id="grade-upload-message" aria-live="polite">File hanya dibaca untuk pemeriksaan; belum ada data yang dikirim ke eCampuz.</p>
+  </div>
+</div>
+
+<div class="panel" id="grade-mapping-panel" hidden>
+  <div class="p-head">2. Petakan kolom Excel</div>
+  <div class="p-body">
+    <form id="grade-mapping-form" class="webform">
+      <div><label for="nim-column">Kolom NIM</label><select id="nim-column" required></select></div>
+      <div><label for="course-column">Kolom kode mata kuliah</label><select id="course-column" required></select></div>
+      <div><label for="grade-column">Kolom nilai</label><select id="grade-column" required></select></div>
+      <div><button type="submit" id="run-grade-preview">Validasi &amp; dry-run</button></div>
+    </form>
+    <p class="hint">Dry-run memeriksa NIM, kode mata kuliah, nilai kosong, dan duplikasi. Bot belum membuka form nilai atau menekan tombol simpan.</p>
+  </div>
+</div>
+
+<div class="panel" id="grade-report-panel" hidden>
+  <div class="p-head">3. Hasil preview dry-run <span id="grade-report-badge" class="badge gray"></span></div>
+  <div class="p-body">
+    <p id="grade-report-summary" class="hint" aria-live="polite"></p>
+    <p id="grade-report-safety" class="hint bad-text">Belum ada perubahan yang dikirim atau disimpan.</p>
+    <div class="table-scroll">
+      <table class="tbl">
+        <thead><tr><th>Baris Excel</th><th>NIM</th><th>Kode MK</th><th>Nilai</th></tr></thead>
+        <tbody id="grade-preview-rows"></tbody>
+      </table>
+    </div>
+    <div id="grade-preview-remaining" class="hint" hidden></div>
+    <div id="grade-validation-issues" class="hint" hidden></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var form = document.getElementById('grade-upload-form');
+  var fileInput = document.getElementById('grade-file');
+  var sheetSelect = document.getElementById('grade-sheet');
+  var headerInput = document.getElementById('header-row');
+  var inspectButton = document.getElementById('inspect-grade-file');
+  var uploadMessage = document.getElementById('grade-upload-message');
+  var mappingPanel = document.getElementById('grade-mapping-panel');
+  var reportPanel = document.getElementById('grade-report-panel');
+  var csrfToken = form.querySelector('[name=csrfmiddlewaretoken]').value;
+  var currentColumns = [];
+
+  function postWorkbook(withMapping) {
+    var body = new FormData(form);
+    if (withMapping) {
+      body.append('nim_column', document.getElementById('nim-column').value);
+      body.append('course_column', document.getElementById('course-column').value);
+      body.append('grade_column', document.getElementById('grade-column').value);
+    }
+    return fetch('{% url "dashboard:api_grade_entry_preview" %}', {
+      method: 'POST',
+      headers: {'X-CSRFToken': csrfToken, 'Accept': 'application/json'},
+      body: body,
+      credentials: 'same-origin'
+    }).then(function (response) {
+      return response.json().then(function (data) {
+        if (!response.ok || !data.ok) throw new Error(data.message || 'Permintaan gagal.');
+        return data;
+      });
+    });
+  }
+
+  function fillColumnSelect(id, selected) {
+    var select = document.getElementById(id);
+    select.textContent = '';
+    var placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = 'Pilih kolom';
+    placeholder.selected = true;
+    placeholder.disabled = true;
+    select.appendChild(placeholder);
+    currentColumns.forEach(function (column) {
+      var option = document.createElement('option');
+      option.value = String(column.index);
+      option.textContent = column.label;
+      option.selected = column.index === selected;
+      select.appendChild(option);
+    });
+  }
+
+  function showColumns(data) {
+    currentColumns = data.columns;
+    function findColumn(pattern) {
+      var match = currentColumns.find(function (column) {
+        return pattern.test(column.label);
+      });
+      return match ? match.index : -1;
+    }
+    fillColumnSelect('nim-column', findColumn(/\b(nim|nomor induk)\b/i));
+    fillColumnSelect('course-column', findColumn(/\b(kode\s?(mk|mata kuliah)|kode)\b/i));
+    fillColumnSelect('grade-column', findColumn(/\b(nilai|grade|huruf)\b/i));
+    mappingPanel.hidden = false;
+    reportPanel.hidden = true;
+    uploadMessage.textContent = 'Header terbaca. Pilih kolom NIM, kode MK, dan nilai untuk memvalidasi.';
+    uploadMessage.className = 'hint';
+  }
+
+  fileInput.addEventListener('change', function () {
+    var selectedFile = fileInput.files[0];
+    inspectButton.disabled = !selectedFile;
+    sheetSelect.disabled = true;
+    sheetSelect.textContent = '';
+    mappingPanel.hidden = true;
+    reportPanel.hidden = true;
+    if (!selectedFile) return;
+    uploadMessage.textContent = selectedFile.name + ' dipilih. Periksa sheet dan header.';
+  });
+
+  inspectButton.addEventListener('click', function () {
+    inspectButton.disabled = true;
+    uploadMessage.textContent = 'Membaca workbook...';
+    postWorkbook(false).then(function (data) {
+      var previousSheet = sheetSelect.value;
+      sheetSelect.textContent = '';
+      data.sheets.forEach(function (name) {
+        var option = document.createElement('option');
+        option.value = name;
+        option.textContent = name;
+        option.selected = name === (previousSheet || data.selected_sheet);
+        sheetSelect.appendChild(option);
+      });
+      sheetSelect.disabled = false;
+      showColumns(data);
+    }).catch(function (error) {
+      uploadMessage.textContent = error.message;
+      uploadMessage.className = 'hint bad-text';
+    }).finally(function () {
+      inspectButton.disabled = !fileInput.files.length;
+    });
+  });
+
+  sheetSelect.addEventListener('change', function () {
+    mappingPanel.hidden = true;
+    reportPanel.hidden = true;
+  });
+  headerInput.addEventListener('change', function () {
+    mappingPanel.hidden = true;
+    reportPanel.hidden = true;
+  });
+
+  document.getElementById('grade-mapping-form').addEventListener('submit', function (event) {
+    event.preventDefault();
+    var button = document.getElementById('run-grade-preview');
+    button.disabled = true;
+    uploadMessage.textContent = 'Memvalidasi data untuk dry-run...';
+    postWorkbook(true).then(function (data) {
+      var report = data.report;
+      reportPanel.hidden = false;
+      document.getElementById('grade-report-badge').textContent =
+        report.valid + ' valid / ' + report.invalid + ' bermasalah';
+      document.getElementById('grade-report-summary').textContent =
+        report.total + ' baris data; ' + report.valid + ' valid, ' + report.invalid +
+        ' tidak valid, ' + report.duplicate_rows + ' peringatan duplikasi.';
+      var rows = document.getElementById('grade-preview-rows');
+      rows.textContent = '';
+      report.preview.forEach(function (item) {
+        var row = document.createElement('tr');
+        [item.row, item.nim, item.course, item.grade].forEach(function (value) {
+          var cell = document.createElement('td');
+          cell.textContent = String(value);
+          row.appendChild(cell);
+        });
+        rows.appendChild(row);
+      });
+      var remaining = document.getElementById('grade-preview-remaining');
+      remaining.hidden = !report.preview_remaining;
+      remaining.textContent = report.preview_remaining
+        ? '... dan ' + report.preview_remaining + ' baris valid lainnya.' : '';
+      var issues = document.getElementById('grade-validation-issues');
+      issues.textContent = '';
+      report.errors.concat(report.warnings).forEach(function (item) {
+        var line = document.createElement('div');
+        line.textContent = 'Baris ' + (item.row || '-') + ': ' +
+          (item.messages ? item.messages.join(' ') : item.message);
+        issues.appendChild(line);
+      });
+      issues.hidden = !report.errors.length && !report.warnings.length;
+      uploadMessage.textContent = 'Dry-run selesai. Tidak ada nilai yang dikirim ke eCampuz.';
+      uploadMessage.className = 'hint';
+    }).catch(function (error) {
+      uploadMessage.textContent = error.message;
+      uploadMessage.className = 'hint bad-text';
+    }).finally(function () {
+      button.disabled = false;
+    });
+  });
+})();
+</script>
+{% endblock %}

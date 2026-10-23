@@ -1,4 +1,4 @@
-# Transkrip & Ijazah — Aplikasi Generate Transkrip Akademik
+# AkademikSync — Aplikasi Generate Transkrip Akademik
 
 Aplikasi web berbasis **Django** untuk menghasilkan transkrip akademik mahasiswa secara otomatis. Data mahasiswa diambil langsung dari **Neo Feeder PDDIKTI**, dicocokkan dengan kurikulum yang tersimpan, lalu diekspor sebagai file Excel siap cetak.
 
@@ -24,10 +24,11 @@ Aplikasi web berbasis **Django** untuk menghasilkan transkrip akademik mahasiswa
 | Fitur | Keterangan |
 |---|---|
 | **Generate Single** | Buat transkrip satu mahasiswa berdasarkan NIM |
-| **Generate Batch** | Buat transkrip banyak mahasiswa dari file `.txt`, `.csv`, atau `.xlsx` (maks 100 NIM) |
+| **Generate Batch** | Buat transkrip banyak mahasiswa dari file `.txt`, `.csv`, atau `.xlsx` (maks 100 NIM), dengan opsi membatalkan batch yang sedang berjalan |
 | **Riwayat Generate** | Log semua generate beserta status, IPK, dan catatan MK bermasalah |
 | **Manajemen Kurikulum** | Upload kurikulum per jenjang & angkatan dari file Excel |
 | **Template Excel** | Upload template Excel transkrip dengan cell mapping fleksibel |
+| **Input Nilai (dry-run)** | Baca, petakan, dan validasi kolom Excel nilai; belum mengirim perubahan ke eCampuz |
 | **Predikat Kelulusan** | Konfigurasi range IPK → predikat per rentang tahun lulus |
 | **Data Pendukung** | Simpan data tambahan per NIM (judul skripsi, no. ijazah, nama dekan) |
 | **Django Admin** | Kelola semua data master via antarmuka admin bawaan Django |
@@ -36,7 +37,7 @@ Aplikasi web berbasis **Django** untuk menghasilkan transkrip akademik mahasiswa
 
 ## Teknologi
 
-- **Backend**: Python 3.11, Django 5.2
+- **Backend**: Python 3.13, Django 6.0
 - **Database**: SQLite (lokal) — mudah dipindah ke PostgreSQL/MySQL
 - **Export**: openpyxl (baca/tulis Excel)
 - **Integrasi**: Neo Feeder PDDIKTI (HTTP/JSON, read-only)
@@ -83,7 +84,7 @@ transkrip-app/
 User input NIM
      │
      ▼
-Feeder: GetToken → GetBiodataMahasiswa(NIM) → GetNilaiPerkuliahanMahasiswa(NIM)
+Feeder: GetToken → GetDataLengkapMahasiswaProdi(NIM) → GetDetailNilaiPerkuliahanKelas(NIM)
      │
      ▼
 Lookup Kurikulum (jenjang + angkatan mahasiswa)
@@ -178,6 +179,8 @@ Saat pertama kali dijalankan, `run.sh` otomatis membuat superuser:
 
 - **Single** (`/`) — masukkan NIM, klik Generate, file `.xlsx` langsung terunduh
 - **Batch** (`/batch/`) — upload file `.txt`/`.csv`/`.xlsx` berisi daftar NIM, satu NIM per baris
+  - Tombol **Batalkan Batch** menghentikan pemrosesan setelah NIM yang sedang aktif selesai; NIM yang sudah selesai tetap masuk ke file hasil.
+- **Input Nilai** (`/ecampuz/input-nilai`) — unggah `.xlsx`/`.xlsm`, pilih sheet/header dan petakan kolom NIM, kode MK, serta nilai untuk preview dry-run. Tahap ini hanya memvalidasi; tidak mengubah data eCampuz.
 
 ### 3. Lihat Riwayat
 
@@ -190,5 +193,6 @@ Halaman `/riwayat/` menampilkan log semua generate dengan filter tanggal, angkat
 - Neo Feeder hanya dipanggil **read-only** (tidak ada Insert/Update/Delete)
 - Token Feeder di-cache in-memory, auto-refresh 5 menit sebelum expired
 - Batch diproses serial dengan jeda 0,3 detik antar NIM agar tidak membebani Feeder
+- Pembatalan batch bersifat kooperatif: NIM yang sedang diproses diselesaikan sebelum batch berhenti
 - File media (template Excel) disimpan di folder `media/` — **tidak masuk Git**
 - Database SQLite (`db.sqlite3`) — **ikut masuk Git** agar data awal/kurikulum bisa dibagikan

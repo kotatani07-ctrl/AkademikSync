@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'core',
+    'dashboard',
 ]
 
 MIDDLEWARE = [
@@ -65,6 +66,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'dashboard.context_processors.inject_session',
             ],
         },
     },
@@ -107,6 +109,14 @@ LOGOUT_REDIRECT_URL = '/login/'
 FEEDER_HOST = os.getenv('FEEDER_HOST', '')
 FEEDER_USERNAME = os.getenv('FEEDER_USERNAME', '')
 FEEDER_PASSWORD = os.getenv('FEEDER_PASSWORD', '')
+
+# Masukkan MK dari Feeder yang tidak ada di kurikulum ke perhitungan total SKS & IPK
+# (True = IPK ikut hitungan MK elektif/MK tak terdokumentasi, False = hanya dicatat)
+INCLUDE_MK_TAK_DIKENALI = os.getenv('INCLUDE_MK_TAK_DIKENALI', 'True') == 'True'
+
+# Bila True: saat Neo Feeder tidak punya data nilai untuk suatu NIM, transkrip
+# memakai hasil scraping DHS eCampuz (data/ecampuz/out/dhs_<nim>.json) sebagai fallback.
+FALLBACK_DHS_SAAT_FEEDER_KOSONG = os.getenv('FALLBACK_DHS_SAAT_FEEDER_KOSONG', 'True') == 'True'
 
 # Default nama dekan
 DEFAULT_NAMA_DEKAN = os.getenv('DEFAULT_NAMA_DEKAN', 'Nama Dekan')

@@ -1,28 +1,32 @@
 """
 Integrasi dengan Neo Feeder PDDIKTI.
-Read-only: hanya memanggil GetToken, GetBiodataMahasiswa, GetRiwayatNilaiMahasiswa.
-TIDAK mengimplementasi fungsi Insert/Update/Delete apapun.
+Read-only: TIDAK mengimplementasi fungsi Insert/Update/Delete apapun.
 
-Masalah arsitektur Feeder:
-  Tabel `a` di GetBiodataMahasiswa & GetListMahasiswa adalah tabel `mahasiswa`
-  (hanya punya id_mahasiswa, nama_mahasiswa). Kolom nim_mahasiswa ada di tabel
-  `registrasi_mahasiswa` yang di-join dengan alias berbeda tergantung instalasi
-  Feeder (umumnya `b`, tapi ada juga yang tanpa prefix).
+Alur yang benar (sudah diverifikasi terhadap web service live2.php):
 
-Strategi:
-  _find_biodata_by_nim() mencoba urutan filter berikut sampai berhasil:
-    1. b.nim_mahasiswa  (registrasi sebagai tabel b — paling umum)
-    2. nim_mahasiswa    (tanpa prefix tabel)
-    3. c.nim_mahasiswa  (alias alternatif)
+  GetToken                                   → token JWT
+  GetDataLengkapMahasiswaProdi  filter nim   → profil + data akademik
+                                               (tempat lahir, prodi, status, periode masuk)
+    fallback: GetListMahasiswa  filter nim
+  GetListRiwayatPendidikanMahasiswa filter nim → data registrasi & kelulusan
+  GetDetailNilaiPerkuliahanKelas filter nim  → semua nilai MK mahasiswa
+    fallback: GetRiwayatNilaiMahasiswa filter id_registrasi_mahasiswa
 
-  _find_nilai_by_nim() mencoba:
-    1. a.nim_mahasiswa  (GetRiwayatNilaiMahasiswa — registrasi bisa jadi tabel a)
-    2. b.nim_mahasiswa
-    3. nim_mahasiswa    (tanpa prefix)
-    Atau fallback via id_registrasi dari biodata.
+Catatan penting — INI AKAR MASALAH VERSI LAMA:
+  * Kolom NIM di Feeder bernama `nim`, BUKAN `nim_mahasiswa`.
+    Filter yang benar: nim='251030033' (nilai WAJIB dikutip).
+  * TIDAK ADA fungsi `GetNilaiPerkuliahanMahasiswa`. Fungsi nilai yang tersedia
+    adalah `GetDetailNilaiPerkuliahanKelas` (bisa langsung difilter by `nim`)
+    dan `GetRiwayatNilaiMahasiswa` (harus difilter by `id_registrasi_mahasiswa`).
+  * TIDAK ADA fungsi `GetRiwayatPendidikanMahasiswa`; yang ada adalah
+    `GetListRiwayatPendidikanMahasiswa`. Memanggil nama yang salah membuat
+    request menggantung (bukan sekadar error).
+  * `GetBiodataMahasiswa` hanya menerima filter `id_mahasiswa` (tidak punya
+    kolom `nim`).
 
 Flow:
-  get_biodata_mahasiswa(nim)           → biodata lengkap + data akademik
+  get_biodata_mahasiswa(nim)           → biodata + data akademik
+  get_riwayat_pendidikan(nim)          → status, tgl lulus, tahun lulus, lama studi
   get_nilai_perkuliahan_mahasiswa(nim) → list nilai MK
 """
 import base64
@@ -60,6 +64,20 @@ def _decode_jwt_payload(token: str) -> dict:
     except Exception as e:
         logger.warning(f"Gagal decode JWT payload: {e}")
         return {}
+
+
+def _extract_token(response: dict) -> str | None:
+    """Ambil token dari format Neo Feeder: data string, data.token, atau token."""
+    if not isinstance(response, dict):
+        return None
+    token_data = response.get('data')
+    if isinstance(token_data, dict):
+        token_data = token_data.get('token') or token_data.get('Token')
+    token = token_data or response.get('token')
+    if not isinstance(token, str):
+        return None
+    token = token.strip()
+    return token or None
 
 
 def _get_feeder_url() -> str:
@@ -143,13 +161,7 @@ def get_token(timeout: int = TIMEOUT_DETIK) -> str:
         }
         response = _call_feeder(payload, timeout=timeout)
 
-        token = None
-        if isinstance(response, dict):
-            token = (
-                response.get('data', {}).get('token')
-                or response.get('token')
-                or response.get('data')
-            )
+        token = _extract_token(response)
         if not token:
             raise ValueError(f"GetToken tidak mengembalikan token. Response: {response}")
 
@@ -181,117 +193,277 @@ def _extract_list_from_response(response) -> list:
     return []
 
 
+def _field(row: dict, *keys, default='') -> str:
+    for key in keys:
+        if key in row and row[key] is not None:
+            return str(row[key]).strip()
+    return default
+
+
+def _field_int(row: dict, *keys, default=0) -> int:
+    for key in keys:
+        if key in row and row[key] is not None:
+            try:
+                return int(row[key])
+            except (TypeError, ValueError):
+                pass
+    return default
+
+
+def _tahun_dari_periode(periode: str) -> int:
+    """Ambil tahun dari id periode (mis. '20251' → 2025)."""
+    teks = str(periode or '').strip()
+    if len(teks) >= 4 and teks[:4].isdigit():
+        return int(teks[:4])
+    return 0
+
+
+def _tahun_dari_tanggal(tanggal: str) -> int:
+    """Ambil tahun dari tanggal 'DD-MM-YYYY' / 'YYYY-MM-DD' / 'YYYY'."""
+    teks = str(tanggal or '').strip()
+    if len(teks) >= 4 and teks[:4].isdigit():
+        return int(teks[:4])
+    bagian = teks.replace('/', '-').split('-')
+    for b in reversed(bagian):
+        if len(b) == 4 and b.isdigit():
+            return int(b)
+    return 0
+
+
+def _infer_jenjang(nama_prodi: str) -> str:
+    """
+    Tebak jenjang dari nama program studi, dikembalikan dalam bentuk yang
+    dikenali oleh normalisasi di core/views.py (S1/D3/D4/Profesi/...).
+    """
+    n = (nama_prodi or '').upper()
+    if 'PROFESI' in n or 'NERS' in n:
+        return 'Profesi'
+    if 'D3' in n or 'DIPLOMA TIGA' in n or 'DIPLOMA III' in n or 'AHLI MADYA' in n:
+        return 'D3'
+    if 'D4' in n or 'DIPLOMA EMPAT' in n or 'DIPLOMA IV' in n or 'SARJANA TERAPAN' in n:
+        return 'Sarjana Terapan'
+    if 'S2' in n or 'MAGISTER' in n:
+        return 'S2'
+    if 'S1' in n or 'SARJANA' in n or 'STRATA SATU' in n:
+        return 'S1'
+    return ''
+
+
+def _call_feeder_paged(act: str, filter_: str | None = None, order: str = '',
+                       limit: int = 200, max_pages: int = 50) -> list:
+    """Panggil act list Feeder dengan pagination, gabungkan semua halaman."""
+    token = get_token()
+    semua: list = []
+    offset = 0
+    for _ in range(max_pages):
+        payload = {"act": act, "token": token, "limit": limit, "offset": offset, "order": order}
+        if filter_:
+            payload["filter"] = filter_
+        rows = _extract_list_from_response(_call_feeder(payload))
+        semua.extend(rows)
+        if len(rows) < limit:
+            break
+        offset += limit
+    return semua
+
+
+# ─── Biodata & riwayat pendidikan ───────────────────────────────────────────────
+
 def _find_biodata_by_nim(nim: str, token: str) -> dict:
     """
-    Cari biodata mahasiswa by NIM dengan mencoba beberapa filter.
-    Strategi berurutan:
-      1. GetBiodataMahasiswa  filter b.nim_mahasiswa  (registrasi sebagai join table b)
-      2. GetBiodataMahasiswa  filter nim_mahasiswa     (tanpa prefix tabel)
-      3. GetBiodataMahasiswa  filter c.nim_mahasiswa   (alias alternatif)
-      4. GetDataLengkapMahasiswaProdi filter a.nim_mahasiswa
-      5. GetListRiwayatPendidikanMahasiswa filter a.nim_mahasiswa
+    Ambil biodata + data akademik mahasiswa berdasarkan NIM.
 
-    Return dict biodata pertama yang ditemukan, atau raise ValueError.
+    1. Utama : GetDataLengkapMahasiswaProdi filter nim (paling lengkap:
+               tempat lahir, prodi, status, periode masuk, id_registrasi).
+    2. Fallback: GetListMahasiswa filter nim.
+    3. Pelengkap: GetBiodataMahasiswa filter id_mahasiswa (bila tempat_lahir kosong).
     """
-    strategies = [
-        ("GetBiodataMahasiswa",             f"b.nim_mahasiswa='{nim}'"),
-        ("GetBiodataMahasiswa",             f"nim_mahasiswa='{nim}'"),
-        ("GetBiodataMahasiswa",             f"c.nim_mahasiswa='{nim}'"),
-        ("GetDataLengkapMahasiswaProdi",    f"a.nim_mahasiswa='{nim}'"),
-        ("GetDataLengkapMahasiswaProdi",    f"b.nim_mahasiswa='{nim}'"),
-        ("GetListRiwayatPendidikanMahasiswa", f"a.nim_mahasiswa='{nim}'"),
-    ]
+    nim = str(nim).strip()
+    filter_str = f"nim='{nim}'"
 
-    last_err = None
-    tried = []
-    for act, filter_str in strategies:
-        tried.append(f"{act}({filter_str})")
-        try:
-            response = _call_feeder({"act": act, "token": token, "filter": filter_str})
-            rows = _extract_list_from_response(response)
-            if rows:
-                data = rows[-1]  # ambil entri terbaru
-                if 'nim_mahasiswa' not in data:
-                    data['nim_mahasiswa'] = nim
-                logger.info(f"Biodata NIM {nim} berhasil via {act} filter={filter_str}")
-                return data
-            # response sukses tapi kosong — mahasiswa tidak ditemukan di prodi ini
-        except FeederFilterError as e:
-            last_err = e
-            logger.warning(f"Filter tidak dikenali: {act} {filter_str} — coba berikutnya")
-            continue
-        except (ConnectionError, TimeoutError):
-            raise
-        except RuntimeError as e:
-            last_err = e
-            logger.warning(f"Error pada {act} {filter_str}: {e} — coba berikutnya")
-            continue
-
-    raise ValueError(
-        f"Mahasiswa dengan NIM '{nim}' tidak ditemukan di Feeder. "
-        f"Sudah dicoba: {', '.join(tried)}. "
-        f"Error terakhir: {last_err}"
-    )
-
-
-def _find_nilai_by_nim_or_reg(nim: str, id_registrasi: str | None, token: str) -> list:
-    """
-    Ambil daftar nilai via GetRiwayatNilaiMahasiswa dengan strategi fallback:
-      1. id_registrasi (jika tersedia) — a.id_registrasi
-      2. a.nim_mahasiswa
-      3. b.nim_mahasiswa
-      4. nim_mahasiswa (tanpa prefix)
-    """
-    strategies = []
-
-    if id_registrasi:
-        strategies.append(f"a.id_registrasi='{id_registrasi}'")
-
-    strategies += [
-        f"a.nim_mahasiswa='{nim}'",
-        f"b.nim_mahasiswa='{nim}'",
-        f"nim_mahasiswa='{nim}'",
-    ]
-
-    last_err = None
-    for filter_str in strategies:
-        try:
-            response = _call_feeder({
-                "act": "GetRiwayatNilaiMahasiswa",
+    rows: list = []
+    try:
+        rows = _extract_list_from_response(
+            _call_feeder({
+                "act": "GetDataLengkapMahasiswaProdi",
                 "token": token,
                 "filter": filter_str,
+                "order": "",
+                "limit": 50,
+                "offset": 0,
             })
-            rows = _extract_list_from_response(response)
-            logger.info(
-                f"GetRiwayatNilaiMahasiswa NIM {nim} via filter={filter_str}: "
-                f"{len(rows)} baris"
+        )
+    except FeederFilterError as e:
+        logger.warning(f"GetDataLengkapMahasiswaProdi filter nim ditolak: {e}")
+    except (ConnectionError, TimeoutError):
+        raise
+    except RuntimeError as e:
+        logger.warning(f"GetDataLengkapMahasiswaProdi error: {e}")
+
+    exact = [r for r in rows if _field(r, "nim") == nim]
+
+    if not exact:
+        try:
+            rows = _extract_list_from_response(
+                _call_feeder({
+                    "act": "GetListMahasiswa",
+                    "token": token,
+                    "filter": filter_str,
+                    "order": "",
+                    "limit": 50,
+                    "offset": 0,
+                })
             )
-            return rows  # bisa kosong (mahasiswa belum ada nilai)
         except FeederFilterError as e:
-            last_err = e
-            logger.warning(f"Filter tidak dikenali: GetRiwayatNilaiMahasiswa {filter_str}")
-            continue
+            logger.warning(f"GetListMahasiswa filter nim ditolak: {e}")
+            rows = []
         except (ConnectionError, TimeoutError):
             raise
         except RuntimeError as e:
-            last_err = e
-            logger.warning(f"Error GetRiwayatNilaiMahasiswa {filter_str}: {e}")
-            continue
+            logger.warning(f"GetListMahasiswa error: {e}")
+            rows = []
+        exact = [r for r in rows if _field(r, "nim") == nim]
 
-    logger.warning(
-        f"Semua filter GetRiwayatNilaiMahasiswa gagal untuk NIM {nim}. "
-        f"Error terakhir: {last_err}. Return list kosong."
-    )
-    return []
+    if not exact:
+        raise ValueError(
+            f"Mahasiswa dengan NIM '{nim}' tidak ditemukan di Feeder. "
+            f"Cek kembali NIM atau pastikan data mahasiswa sudah sync."
+        )
+
+    # Ambil entri terbaru bila ada duplikat
+    data = dict(exact[-1])
+
+    id_mahasiswa = _field(data, "id_mahasiswa")
+    if not id_mahasiswa:
+        id_mahasiswa = _field(data, "id_mahasiswa")
+    if not _field(data, "tempat_lahir") and id_mahasiswa:
+        try:
+            bio_rows = _extract_list_from_response(
+                _call_feeder({
+                    "act": "GetBiodataMahasiswa",
+                    "token": token,
+                    "filter": f"id_mahasiswa='{id_mahasiswa}'",
+                    "order": "",
+                    "limit": 1,
+                    "offset": 0,
+                })
+            )
+            if bio_rows:
+                bio = bio_rows[0]
+                for key in ("tempat_lahir", "tanggal_lahir", "jenis_kelamin", "nik"):
+                    if not _field(data, key) and _field(bio, key):
+                        data[key] = bio[key]
+        except (FeederFilterError, RuntimeError) as e:
+            logger.warning(f"GetBiodataMahasiswa pelengkap gagal untuk NIM {nim}: {e}")
+        except (ConnectionError, TimeoutError):
+            raise
+
+    # Angkatan dari periode masuk (mis. '20251' → 2025)
+    periode = _field(data, "id_periode_masuk", "id_periode")
+    tahun = _tahun_dari_periode(periode)
+    if tahun:
+        data["angkatan"] = tahun
+        data["tahun_masuk"] = tahun
+
+    # Jenjang dari nama prodi
+    jenjang = _infer_jenjang(_field(data, "nama_program_studi", "prodi", "nama_prodi"))
+    if jenjang:
+        data["jenjang"] = jenjang
+
+    # Field kompatibilitas
+    if not _field(data, "nim_mahasiswa"):
+        data["nim_mahasiswa"] = nim
+    if not _field(data, "nama_mahasiswa"):
+        data["nama_mahasiswa"] = _field(data, "nama")
+    if not _field(data, "nama_program_studi"):
+        data["nama_program_studi"] = _field(data, "prodi", "nama_prodi")
+    if not _field(data, "status_mahasiswa"):
+        data["status_mahasiswa"] = _field(data, "nama_status_mahasiswa")
+
+    return data
+
+
+def _find_riwayat_pendidikan_by_nim(nim: str, token: str) -> list:
+    """Ambil baris GetListRiwayatPendidikanMahasiswa untuk NIM (filter `nim`)."""
+    try:
+        rows = _extract_list_from_response(
+            _call_feeder({
+                "act": "GetListRiwayatPendidikanMahasiswa",
+                "token": token,
+                "filter": f"nim='{nim}'",
+                "order": "",
+                "limit": 50,
+                "offset": 0,
+            })
+        )
+    except FeederFilterError as e:
+        logger.warning(f"Filter GetListRiwayatPendidikanMahasiswa ditolak: {e}")
+        return []
+    except (ConnectionError, TimeoutError):
+        raise
+    except RuntimeError as e:
+        logger.warning(f"GetListRiwayatPendidikanMahasiswa error: {e}")
+        return []
+    return [r for r in rows if _field(r, "nim") == nim] or rows
+
+
+def _hitung_lama_studi(periode_masuk: str, periode_keluar: str) -> str:
+    """Hitung lama studi (jumlah semester) dari id periode masuk → keluar."""
+    p1, p2 = str(periode_masuk or '').strip(), str(periode_keluar or '').strip()
+    if len(p1) < 5 or len(p2) < 5 or not (p1[:4].isdigit() and p2[:4].isdigit()):
+        return ''
+    s1 = int(p1[:4]) * 2 + (1 if p1[4] == '1' else 2)
+    s2 = int(p2[:4]) * 2 + (1 if p2[4] == '1' else 2)
+    jumlah = s2 - s1 + 1
+    return f"{jumlah} semester" if jumlah > 0 else ''
+
+
+def get_riwayat_pendidikan(nim: str) -> dict:
+    """
+    Ambil data kelulusan mahasiswa dari GetListRiwayatPendidikanMahasiswa:
+    status, tanggal lulus, tahun lulus, lama studi.
+
+    Return dict ternormalisasi (field yang dikenali parse_biodata), atau {}
+    bila tidak ditemukan — kegagalan di sini tidak menggagalkan generate.
+    ConnectionError/TimeoutError tetap di-raise (Feeder tidak terjangkau).
+    """
+    token = get_token()
+    rows = _find_riwayat_pendidikan_by_nim(nim, token)
+    if not rows:
+        logger.warning(f"Riwayat pendidikan NIM {nim} tidak ditemukan di Feeder.")
+        return {}
+
+    data = dict(rows[-1])  # entri terbaru
+
+    # Normalisasi agar dikenali parse_biodata (lihat core/services/matching.py)
+    if not _field(data, "status_mahasiswa"):
+        ket = _field(data, "keterangan_keluar", "nama_jenis_keluar")
+        if ket:
+            data["status_mahasiswa"] = ket
+
+    tanggal_keluar = _field(data, "tanggal_keluar", "tanggal_kelulusan")
+    if tanggal_keluar and not _field(data, "tanggal_kelulusan"):
+        data["tanggal_kelulusan"] = tanggal_keluar
+
+    if not _field(data, "tahun_kelulusan"):
+        tahun = _tahun_dari_tanggal(tanggal_keluar) or _tahun_dari_periode(_field(data, "id_periode_keluar"))
+        if tahun:
+            data["tahun_kelulusan"] = tahun
+
+    if not _field(data, "lama_studi"):
+        lama = _hitung_lama_studi(
+            _field(data, "id_periode_masuk"), _field(data, "id_periode_keluar")
+        )
+        if lama:
+            data["lama_studi"] = lama
+
+    return data
 
 
 # ─── Public API ────────────────────────────────────────────────────────────────
 
 def get_biodata_mahasiswa(nim: str) -> dict:
-    """
-    Ambil biodata + data akademik mahasiswa berdasarkan NIM.
-    Mencoba berbagai kombinasi filter/endpoint secara otomatis.
-    """
+    """Ambil biodata + data akademik mahasiswa berdasarkan NIM."""
     token = get_token()
     return _find_biodata_by_nim(nim, token)
 
@@ -301,21 +473,118 @@ def get_program_mahasiswa(nim: str) -> dict:
     return get_biodata_mahasiswa(nim)
 
 
+# ─── Master data (prodi, kurikulum, MK) ─────────────────────────────────────────
+
+def get_daftar_prodi(keyword: str = '') -> list:
+    """
+    Ambil daftar program studi dari Feeder (GetListProgramStudi).
+    `keyword` (opsional) memfilter by id_prodi atau potongan nama prodi.
+    """
+    rows = _call_feeder_paged('GetListProgramStudi')
+    if not keyword:
+        return rows
+    kw = keyword.strip().lower()
+    return [
+        r for r in rows
+        if kw in _field(r, 'id_prodi', 'id_program_studi').lower()
+        or kw in _field(r, 'nama_program_studi', 'nama_prodi').lower()
+        or kw in _field(r, 'kode_program_studi', 'kode_prodi').lower()
+    ]
+
+
+def get_daftar_kurikulum(prodi_id: str = '') -> list:
+    """
+    Ambil daftar kurikulum dari Feeder (GetListKurikulum).
+    Filter opsional by id_prodi.
+    """
+    filter_ = f"id_prodi='{prodi_id}'" if prodi_id else None
+    return _call_feeder_paged('GetListKurikulum', filter_)
+
+
+def get_mk_kurikulum(id_kurikulum: str) -> list:
+    """
+    Ambil daftar mata kuliah sebuah kurikulum (GetListMataKuliahKurikulum).
+    Fallback ke GetListMataKuliah bila act/filter tidak tersedia di Feeder.
+    Return list dict ternormalisasi: {kode_mk, nama_mk, sks, semester}.
+    Baris tanpa kode atau nama dilewati.
+    """
+    filter_ = f"id_kurikulum='{id_kurikulum}'"
+    try:
+        rows = _call_feeder_paged('GetListMataKuliahKurikulum', filter_)
+    except FeederFilterError:
+        logger.warning(
+            'GetListMataKuliahKurikulum tidak tersedia di Feeder ini, '
+            'fallback ke GetListMataKuliah (semua MK).'
+        )
+        rows = _call_feeder_paged('GetListMataKuliah')
+
+    hasil = []
+    for r in rows:
+        kode = _field(r, 'kode_mata_kuliah', 'kode_mk', 'kode_matkul', 'kode')
+        nama = _field(r, 'nama_mata_kuliah', 'nama_mk', 'nama_matkul', 'mata_kuliah')
+        if not kode or not nama:
+            continue
+        hasil.append({
+            'kode_mk': kode,
+            'nama_mk': nama,
+            'sks': _field_int(r, 'sks_mata_kuliah', 'sks_mk', 'sks'),
+            'semester': _field(r, 'sem_mk', 'semester', 'id_semester'),
+        })
+    return hasil
+
+
 def get_nilai_perkuliahan_mahasiswa(nim: str) -> list:
     """
     Ambil riwayat nilai mahasiswa berdasarkan NIM.
-    Gunakan id_registrasi dari biodata jika tersedia.
+
+    1. Utama  : GetDetailNilaiPerkuliahanKelas filter nim='<nim>'
+                (langsung per NIM; memuat kode & nama MK, SKS, nilai huruf/angka).
+    2. Fallback: GetRiwayatNilaiMahasiswa filter id_registrasi_mahasiswa (dari biodata).
+
+    Return list kosong bila mahasiswa valid tetapi belum punya nilai,
+    agar halaman generate bisa memakai fallback DHS eCampuz.
     """
-    token = get_token()
+    nim = str(nim).strip()
 
-    id_registrasi = None
+    rows: list = []
     try:
-        biodata = _find_biodata_by_nim(nim, token)
-        id_registrasi = biodata.get('id_registrasi') or biodata.get('id_reg')
-    except Exception as e:
-        logger.warning(f"Tidak bisa ambil id_registrasi untuk {nim}: {e}")
+        rows = _call_feeder_paged(
+            'GetDetailNilaiPerkuliahanKelas',
+            filter_=f"nim='{nim}'",
+            order='id_semester,kode_mata_kuliah',
+        )
+    except FeederFilterError as e:
+        logger.warning(
+            f"GetDetailNilaiPerkuliahanKelas filter nim ditolak ({e}); "
+            f"fallback ke GetRiwayatNilaiMahasiswa."
+        )
+        rows = []
 
-    return _find_nilai_by_nim_or_reg(nim, id_registrasi, token)
+    if not rows:
+        id_registrasi = None
+        try:
+            biodata = _find_biodata_by_nim(nim, get_token())
+            id_registrasi = (
+                biodata.get('id_registrasi_mahasiswa')
+                or biodata.get('id_registrasi')
+            )
+        except (ConnectionError, TimeoutError):
+            raise
+        except Exception as e:
+            logger.warning(f"Tidak bisa ambil id_registrasi untuk {nim}: {e}")
+
+        if id_registrasi:
+            try:
+                rows = _call_feeder_paged(
+                    'GetRiwayatNilaiMahasiswa',
+                    filter_=f"id_registrasi_mahasiswa='{id_registrasi}'",
+                )
+            except FeederFilterError as e:
+                logger.warning(f"GetRiwayatNilaiMahasiswa ditolak ({e}).")
+                rows = []
+
+    logger.info(f"GetNilai NIM {nim}: {len(rows)} baris nilai.")
+    return rows
 
 
 def clear_token_cache():
@@ -355,9 +624,7 @@ def check_connection() -> tuple[bool, str]:
         )
         resp.raise_for_status()
         data = resp.json()
-        token = (
-            data.get('data', {}).get('token') or data.get('token') or data.get('data')
-        ) if isinstance(data, dict) else None
+        token = _extract_token(data)
 
         if token:
             payload_data = _decode_jwt_payload(token)

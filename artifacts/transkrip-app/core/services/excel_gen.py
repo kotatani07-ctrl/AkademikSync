@@ -57,6 +57,9 @@ def isi_field_biodata(ws, cm: dict, hasil: HasilPencocokan, data_pendukung=None,
     set_cell('total_sks', hasil.total_sks)
     set_cell('ipk', float(hasil.ipk))
     set_cell('predikat', hasil.predikat)
+    set_cell('status_mahasiswa', hasil.status_mahasiswa)
+    set_cell('status_kelulusan', hasil.status_mahasiswa)
+    set_cell('lama_studi', hasil.lama_studi)
 
     # Data pendukung
     if data_pendukung:
@@ -143,6 +146,15 @@ def buat_sheet_laporan(wb: openpyxl.Workbook, hasil: HasilPencocokan, sheet_name
         cell.font = Font(bold=True)
         cell.alignment = Alignment(horizontal='center')
 
+    # Catatan sumber nilai bila pakai fallback hasil scraping eCampuz (DHS)
+    if hasil.sumber_nilai == 'dhs':
+        ws.append([
+            hasil.nim, hasil.nama, '', '', '', '', '', 'SUMBER DHS',
+            'Nilai dari hasil scraping eCampuz (fallback) — Neo Feeder tidak punya data nilai'
+        ])
+        for cell in ws[ws.max_row]:
+            cell.font = Font(italic=True)
+
     def tambah_baris(kode, nama, sks, nilai, lambang, status, keterangan, fill_color=None):
         row_data = [hasil.nim, hasil.nama, kode, nama, sks, nilai, lambang, status, keterangan]
         ws.append(row_data)
@@ -170,14 +182,49 @@ def buat_sheet_laporan(wb: openpyxl.Workbook, hasil: HasilPencocokan, sheet_name
                 FILL_KUNING
             )
 
+    # MK dengan nilai tidak terbaca → ORANYE
+    for mk in hasil.daftar_mk:
+        if mk.is_tidak_terbaca:
+            tambah_baris(
+                mk.kode_mk, mk.nama_mk, mk.sks, mk.nilai_angka or '', mk.nilai_lambang or '',
+                'NILAI TIDAK TERBACA',
+                mk.catatan or 'Baris nilai dari Feeder tidak bisa dibaca, perlu verifikasi manual',
+                FILL_ORANYE
+            )
+
+    # MK nilai E (tidak lulus) → ORANYE, SKS tidak dihitung ke total & IPK
+    for mk in hasil.daftar_mk:
+        if mk.is_tidak_lulus:
+            tambah_baris(
+                mk.kode_mk, mk.nama_mk, mk.sks, mk.nilai_angka or '', mk.nilai_lambang or '',
+                'TIDAK LULUS',
+                'Nilai E — SKS tidak dihitung ke total SKS & IPK, perlu diulang',
+                FILL_ORANYE
+            )
+
     # MK tidak dikenali → ORANYE
+    ket_tidak_dikenali = (
+        'MK tidak ada di kurikulum — SKS & mutu tetap dihitung ke total/IPK'
+        if hasil.mk_tidak_dikenali_dihitung
+        else 'MK tidak ada di kurikulum — tidak dihitung ke total/IPK'
+    )
     for mk in hasil.mk_tidak_dikenali:
         tambah_baris(
             mk.kode_mk, mk.nama_mk, mk.sks_api, mk.nilai_angka, mk.nilai_lambang,
             'TIDAK DIKENALI',
-            'Kode MK tidak dikenali, kemungkinan typo/transfer',
+            ket_tidak_dikenali,
             FILL_ORANYE
         )
+
+    # MK dengan SKS Feeder ≠ SKS kurikulum → ORANYE
+    for mk in hasil.daftar_mk:
+        if mk.sks_api and mk.sks and mk.sks_api != mk.sks and not mk.is_kosong:
+            tambah_baris(
+                mk.kode_mk, mk.nama_mk, mk.sks, mk.nilai_angka or '', mk.nilai_lambang or '',
+                'SKS BEDA',
+                f'SKS di Feeder {mk.sks_api} ≠ SKS kurikulum {mk.sks}',
+                FILL_ORANYE
+            )
 
     # Auto-width kolom
     for col in ws.columns:
@@ -263,7 +310,7 @@ def generate_batch_excel(
             ws.cell(baris_offset + 1, 1, f"Nama: {hasil.nama}")
             ws.cell(baris_offset + 2, 1, f"Prodi: {hasil.prodi}")
             ws.cell(baris_offset + 3, 1, f"Jenjang/Angkatan: {hasil.jenjang} / {hasil.angkatan}")
-            ws.cell(baris_offset + 4, 1, f"Tgl Lulus: {hasil.tanggal_lulus}")
+            ws.cell(baris_offset + 4, 1, f"Tgl Lulus: {hasil.tanggal_lulus}   |   Status: {hasil.status_mahasiswa or '-'}   |   Lama Studi: {hasil.lama_studi or '-'}")
             ws.cell(baris_offset + 5, 1, f"IPK: {hasil.ipk}  |  Total SKS: {hasil.total_sks}")
             ws.cell(baris_offset + 6, 1, f"Predikat: {hasil.predikat}")
 
@@ -307,6 +354,12 @@ def generate_batch_excel(
             ws.cell(baris_data, 4, hasil.total_sks)
             ws.cell(baris_data, 7, float(hasil.total_mutu))
 
+            if hasil.sumber_nilai == 'dhs':
+                ws.cell(
+                    baris_data + 1, 1,
+                    "Sumber Nilai: hasil scraping eCampuz (DHS) — fallback karena Feeder kosong"
+                )
+
             baris_akhir_mahasiswa = baris_data + 2
             baris_offset = baris_akhir_mahasiswa + 1
 
@@ -322,6 +375,13 @@ def generate_batch_excel(
         cell.font = F(bold=True)
 
     for hasil, data_pendukung, _, _ in daftar_hasil:
+        if hasil.sumber_nilai == 'dhs':
+            ws_lap.append([
+                hasil.nim, hasil.nama, '', '', '', '', '',
+                'SUMBER DHS', 'Nilai dari hasil scraping eCampuz (fallback) — Neo Feeder kosong'
+            ])
+            for cell in ws_lap[ws_lap.max_row]:
+                cell.font = F(italic=True)
         for mk in hasil.daftar_mk:
             if mk.is_kosong:
                 ws_lap.append([
@@ -339,15 +399,48 @@ def generate_batch_excel(
                 ])
                 for cell in ws_lap[ws_lap.max_row]:
                     cell.fill = FILL_KUNING
+            elif mk.is_tidak_terbaca:
+                ws_lap.append([
+                    hasil.nim, hasil.nama, mk.kode_mk, mk.nama_mk, mk.sks,
+                    mk.nilai_angka or '', mk.nilai_lambang or '',
+                    'NILAI TIDAK TERBACA',
+                    mk.catatan or 'Baris nilai dari Feeder tidak bisa dibaca, perlu verifikasi manual'
+                ])
+                for cell in ws_lap[ws_lap.max_row]:
+                    cell.fill = FILL_ORANYE
+            elif mk.is_tidak_lulus:
+                ws_lap.append([
+                    hasil.nim, hasil.nama, mk.kode_mk, mk.nama_mk, mk.sks,
+                    mk.nilai_angka or '', mk.nilai_lambang or '',
+                    'TIDAK LULUS', 'Nilai E — SKS tidak dihitung ke total SKS & IPK'
+                ])
+                for cell in ws_lap[ws_lap.max_row]:
+                    cell.fill = FILL_ORANYE
 
         for mk in hasil.mk_tidak_dikenali:
+            ket = (
+                'MK tidak ada di kurikulum — SKS & mutu tetap dihitung ke total/IPK'
+                if hasil.mk_tidak_dikenali_dihitung
+                else 'MK tidak ada di kurikulum — tidak dihitung ke total/IPK'
+            )
             ws_lap.append([
                 hasil.nim, hasil.nama, mk.kode_mk, mk.nama_mk, mk.sks_api,
                 mk.nilai_angka, mk.nilai_lambang,
-                'TIDAK DIKENALI', 'Kode MK tidak dikenali, kemungkinan typo/transfer'
+                'TIDAK DIKENALI', ket
             ])
             for cell in ws_lap[ws_lap.max_row]:
                 cell.fill = FILL_ORANYE
+
+        for mk in hasil.daftar_mk:
+            if mk.sks_api and mk.sks and mk.sks_api != mk.sks and not mk.is_kosong:
+                ws_lap.append([
+                    hasil.nim, hasil.nama, mk.kode_mk, mk.nama_mk, mk.sks,
+                    mk.nilai_angka or '', mk.nilai_lambang or '',
+                    'SKS BEDA',
+                    f'SKS di Feeder {mk.sks_api} ≠ SKS kurikulum {mk.sks}'
+                ])
+                for cell in ws_lap[ws_lap.max_row]:
+                    cell.fill = FILL_ORANYE
 
     buf = io.BytesIO()
     wb.save(buf)

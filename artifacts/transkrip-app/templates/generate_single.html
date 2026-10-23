@@ -18,6 +18,11 @@
 
         <form method="post" id="generateForm">
           {% csrf_token %}
+          <div class="mb-3">
+            <label class="form-label" for="{{ form.prodi.id_for_label }}">{{ form.prodi.label }}</label>
+            {{ form.prodi }}
+            {% if form.prodi.errors %}<div class="text-danger small mt-1">{{ form.prodi.errors }}</div>{% endif %}
+          </div>
           <div class="mb-4">
             <label class="form-label">{{ form.nim.label }}</label>
             {{ form.nim }}

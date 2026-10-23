@@ -12,4 +12,5 @@ urlpatterns = [
     path('login/', csrf_exempt(auth_views.LoginView.as_view(template_name='login.html')), name='login'),
     path('logout/', csrf_exempt(auth_views.LogoutView.as_view()), name='logout'),
     path('', include('core.urls')),
+    path('ecampuz/', include('dashboard.urls')),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

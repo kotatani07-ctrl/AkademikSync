@@ -19,6 +19,12 @@
 
         <form method="post" enctype="multipart/form-data" id="batchForm">
           {% csrf_token %}
+          <input type="hidden" name="batch_id" value="{{ batch_id }}">
+          <div class="mb-3">
+            <label class="form-label" for="{{ form.prodi.id_for_label }}">{{ form.prodi.label }}</label>
+            {{ form.prodi }}
+            {% if form.prodi.errors %}<div class="text-danger small mt-1">{{ form.prodi.errors }}</div>{% endif %}
+          </div>
           <div class="mb-4">
             <label class="form-label">{{ form.file_nim.label }}</label>
             {{ form.file_nim }}
@@ -42,8 +48,13 @@
           <p class="text-muted small mb-1">Memproses daftar NIM...</p>
           <p class="text-muted" style="font-size:.75rem">
             Proses berjalan sinkron — satu per satu ke Neo Feeder.<br>
-            Untuk 50–100 NIM bisa memakan beberapa menit. Harap tunggu.
+            Untuk 50–100 NIM bisa memakan beberapa menit. NIM yang sedang diproses akan diselesaikan sebelum dibatalkan.
           </p>
+          <button type="button" class="btn btn-outline-danger btn-sm" id="cancelBtn"
+                  data-cancel-url="{% url 'cancel_generate_batch' batch_id %}">
+            <i class="bi bi-x-circle me-1"></i>Batalkan Batch
+          </button>
+          <p id="cancelStatus" class="text-muted small mt-2 mb-0" role="status"></p>
         </div>
       </div>
     </div>
@@ -96,7 +107,11 @@
               {% for h in hasil_batch %}
               <tr class="{% if h.status == 'error' %}table-danger{% endif %}">
                 <td class="font-monospace small">{{ h.nim }}</td>
-                <td class="small">{{ h.nama }}</td>
+                <td class="small">{{ h.nama }}
+                  {% if h.status == 'success' and h.sumber_nilai == 'dhs' %}
+                  <span class="badge text-bg-warning" title="Nilai dari hasil scraping eCampuz (fallback karena Feeder kosong)">DHS</span>
+                  {% endif %}
+                </td>
                 <td>
                   {% if h.status == 'success' %}
                   <strong>{{ h.ipk }}</strong>
@@ -159,9 +174,40 @@
 
 {% block extra_js %}
 <script>
-document.getElementById('batchForm').addEventListener('submit', function() {
-  document.getElementById('submitBtn').classList.add('d-none');
-  document.getElementById('loadingIndicator').classList.remove('d-none');
+const batchForm = document.getElementById('batchForm');
+const submitBtn = document.getElementById('submitBtn');
+const loadingIndicator = document.getElementById('loadingIndicator');
+const cancelBtn = document.getElementById('cancelBtn');
+
+batchForm.addEventListener('submit', function() {
+  submitBtn.classList.add('d-none');
+  loadingIndicator.classList.remove('d-none');
+});
+
+cancelBtn.addEventListener('click', async function() {
+  cancelBtn.disabled = true;
+  document.getElementById('cancelStatus').textContent =
+    'Permintaan diterima; NIM yang sedang diproses akan diselesaikan.';
+  try {
+    const response = await fetch(cancelBtn.dataset.cancelUrl, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': batchForm.querySelector('[name=csrfmiddlewaretoken]').value,
+        'Accept': 'application/json',
+      },
+      credentials: 'same-origin',
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || 'Permintaan pembatalan gagal.');
+    }
+    document.getElementById('cancelStatus').textContent = result.cancelled
+      ? 'Batch akan berhenti setelah NIM yang sedang diproses selesai.'
+      : 'Batch sudah selesai diproses.';
+  } catch (error) {
+    cancelBtn.disabled = false;
+    document.getElementById('cancelStatus').textContent = error.message;
+  }
 });
 </script>
 {% endblock %}

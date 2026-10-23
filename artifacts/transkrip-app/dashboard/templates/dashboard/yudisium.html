@@ -1,0 +1,333 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Pendaftaran Yudisium - eCampuz{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Pendaftaran Yudisium</h1>
+    <div class="sub">Data entry berurutan dari roster NIM yang sudah disetujui admin.</div>
+  </div>
+  <span id="job-badge" class="badge gray">{{ job.message }}</span>
+</div>
+
+<div class="panel">
+  <div class="p-head">1. Roster mahasiswa</div>
+  <div class="p-body">
+    <form class="webform" id="upload-form">
+      <div>
+        <label for="roster">File CSV / Excel</label>
+        <input id="roster" name="roster" type="file" accept=".csv,.xlsx,.xlsm" required>
+      </div>
+      <div>
+        <label for="nim-column">Header kolom NIM</label>
+        <input id="nim-column" name="nim_column" type="text" value="NIM" required>
+      </div>
+      <div>
+        <label for="sheet">Sheet Excel (opsional)</label>
+        <input id="sheet" name="sheet" type="text" placeholder="sheet aktif bila kosong">
+      </div>
+      <div>
+        <button id="btn-preview" type="submit">Validasi &amp; preview</button>
+      </div>
+    </form>
+    <p class="hint" id="upload-message">File hanya dipakai sebagai roster; bot tidak menilai kelayakan akademik.</p>
+  </div>
+</div>
+
+<div class="panel" id="preview-panel" hidden>
+  <div class="p-head">Preview roster <span id="roster-count" class="badge info"></span></div>
+  <div class="p-body" style="padding:0">
+    <table class="tbl">
+      <thead><tr><th>#</th><th>NIM</th></tr></thead>
+      <tbody id="preview-rows"></tbody>
+    </table>
+    <div id="preview-remaining" class="p-body" hidden></div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="p-head">2. Jalankan batch</div>
+  <div class="p-body">
+    <form class="webform" id="run-form">
+      <div style="grid-column:1/-1">
+        <label for="registration-url">URL halaman Tambah - Mahasiswa Lain pada sesi eCampuz aktif</label>
+        <input id="registration-url" name="url" type="url" placeholder="https://.../kelulusan/?act=...&amp;w=..." required>
+      </div>
+      <div>
+        <label for="limit">Maksimum NIM batch ini (maks. 50)</label>
+        <input id="limit" name="limit" type="number" min="1" max="50" value="1" required>
+      </div>
+      <div>
+        <label for="delay">Jeda antar mahasiswa (detik)</label>
+        <input id="delay" name="delay" type="number" min="1.5" max="30" step="0.5" value="3">
+      </div>
+      <div>
+        <label for="campaign-id">ID periode/sesi yudisium</label>
+        <input id="campaign-id" name="campaign_id" type="text" placeholder="Contoh: Ganjil 2026/2027" required>
+      </div>
+      <div class="chk">
+        <input id="retry-failed" name="retry_failed" type="checkbox">
+        <label for="retry-failed" style="display:inline;margin:0">Coba ulang baris berstatus Gagal dari periode ini. Centang ini untuk mengulangi pencarian/aksi yang gagal sebelumnya.</label>
+      </div>
+      <div>
+        <label for="confirmation">Ketik frasa konfirmasi setelah memilih batas</label>
+        <input id="confirmation" name="confirmation" type="text" autocomplete="off" placeholder="DAFTAR YUDISIUM 1" required>
+      </div>
+      <div class="chk" style="grid-column:1/-1">
+        <input id="approved" name="approved" type="checkbox" required>
+        <label for="approved" style="display:inline;margin:0">Saya memastikan roster sudah diverifikasi admin dan berwenang menjalankan pendaftaran.</label>
+      </div>
+      <div>
+        <button id="btn-run" type="submit" disabled>Mulai pendaftaran</button>
+      </div>
+    </form>
+    <p class="hint" id="run-readiness" aria-live="polite">Validasi roster, lengkapi URL/periode, centang kewenangan, lalu ketik frasa konfirmasi.</p>
+    <p class="hint">CAPTCHA tetap diisi manual pada jendela browser yang dibuka bot. Penolakan portal dicatat Gagal dan proses lanjut; hasil yang tidak pasti akan menghentikan batch.</p>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="p-head">
+    <span>3. Data Kelulusan setelah pendaftaran</span>
+    <a class="btn small ghost" href="{% url 'dashboard:api_yudisium_template' %}">Unduh template .xls</a>
+  </div>
+  <div class="p-body">
+    <p class="hint">Gunakan template ini setelah proses pendaftaran, isi data kelulusan sesuai aturan pada lembar, lalu validasi sebelum mengunggahnya melalui menu Pengelolaan Yudisium &rarr; Import Data Kelulusan di eCampuz. Dashboard memeriksa format saja; file tidak dikirim ke eCampuz.</p>
+    <form class="webform" id="graduation-validate-form">
+      <div>
+        <label for="graduation-file">File hasil isi (.xls)</label>
+        <input id="graduation-file" name="graduation_file" type="file" accept=".xls" required>
+      </div>
+      <div><button type="submit" id="btn-validate-graduation">Validasi file kelulusan</button></div>
+      <span id="graduation-validation-badge" class="badge gray">Belum divalidasi</span>
+    </form>
+    <div id="graduation-validation-summary" class="hint" style="margin-top:12px" aria-live="polite"></div>
+    <div class="table-scroll" id="graduation-errors-wrap" hidden>
+      <table class="tbl">
+        <thead><tr><th>Baris Excel</th><th>Kolom</th><th>Masalah</th></tr></thead>
+        <tbody id="graduation-errors"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="panel" id="manual-panel" hidden>
+  <div class="p-head">Perlu login manual</div>
+  <div class="p-body">
+    <p id="manual-message">Selesaikan login dan CAPTCHA pada jendela browser bot. Setelah itu, buka halaman Tambah - Mahasiswa Lain untuk sesi aktif.</p>
+    <button id="btn-continue" type="button">Saya sudah login, lanjutkan</button>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="p-head">Status dan log <a id="log-download" class="btn small ghost" href="{% url 'dashboard:api_yudisium_log' %}" hidden>Unduh CSV log</a></div>
+  <div class="p-body">
+    <pre class="log" id="job-log">{% if job.log %}{{ job.log|join:"\n" }}{% else %}Belum ada batch yudisium.{% endif %}</pre>
+  </div>
+</div>
+
+<script>
+var uploadId = null;
+var pollHandle = null;
+var badge = document.getElementById('job-badge');
+var logBox = document.getElementById('job-log');
+var runButton = document.getElementById('btn-run');
+var confirmationInput = document.getElementById('confirmation');
+var limitInput = document.getElementById('limit');
+var previewPanel = document.getElementById('preview-panel');
+var registrationUrlInput = document.getElementById('registration-url');
+var campaignInput = document.getElementById('campaign-id');
+var approvedInput = document.getElementById('approved');
+
+function expectedPhrase() {
+  return 'DAFTAR YUDISIUM ' + limitInput.value;
+}
+
+function updateRunAvailability() {
+  var limit = Number(limitInput.value);
+  var validLimit = Number.isInteger(limit) && limit >= 1 && limit <= 50;
+  var missing = [];
+  if (!uploadId) missing.push('validasi roster');
+  if (!registrationUrlInput.value.trim()) missing.push('URL sesi eCampuz');
+  if (!campaignInput.value.trim()) missing.push('ID periode yudisium');
+  if (!validLimit) missing.push('batas batch 1-50');
+  if (!approvedInput.checked) missing.push('centang kewenangan admin');
+  if (confirmationInput.value.trim() !== expectedPhrase()) missing.push('ketik ' + expectedPhrase());
+  runButton.disabled = missing.length > 0;
+  document.getElementById('run-readiness').textContent = missing.length
+    ? 'Belum siap: ' + missing.join('; ') + '.'
+    : 'Siap. Batch akan mengirim ' + limit + ' mahasiswa secara berurutan.';
+  confirmationInput.placeholder = expectedPhrase();
+}
+
+function invalidateRoster() {
+  uploadId = null;
+  previewPanel.hidden = true;
+  document.getElementById('preview-rows').textContent = '';
+  document.getElementById('upload-message').textContent = 'Roster berubah. Validasi dan preview ulang sebelum menjalankan.';
+  updateRunAvailability();
+}
+
+function showError(message) {
+  document.getElementById('upload-message').textContent = message;
+  document.getElementById('upload-message').className = 'hint bad-text';
+}
+
+document.getElementById('upload-form').addEventListener('submit', function (event) {
+  event.preventDefault();
+  var button = document.getElementById('btn-preview');
+  var form = new FormData(event.currentTarget);
+  button.disabled = true;
+  document.getElementById('upload-message').textContent = 'Memvalidasi roster...';
+  fetch('{% url "dashboard:api_yudisium_upload" %}', {method: 'POST', body: form})
+    .then(function (response) { return response.json().then(function (data) { return {ok: response.ok, data: data}; }); })
+    .then(function (result) {
+      if (!result.ok || !result.data.ok) throw new Error(result.data.message || 'Gagal membaca roster.');
+      var data = result.data;
+      uploadId = data.upload_id;
+      document.getElementById('roster-count').textContent = data.total + ' NIM';
+      var body = document.getElementById('preview-rows');
+      body.textContent = '';
+      data.preview.forEach(function (nim, index) {
+        var row = document.createElement('tr');
+        var number = document.createElement('td');
+        var value = document.createElement('td');
+        number.textContent = String(index + 1);
+        value.textContent = nim;
+        value.className = 'mono';
+        row.append(number, value);
+        body.appendChild(row);
+      });
+      var remaining = document.getElementById('preview-remaining');
+      remaining.hidden = !data.remaining;
+      remaining.textContent = data.remaining ? '... dan ' + data.remaining + ' NIM lainnya.' : '';
+      previewPanel.hidden = false;
+      document.getElementById('upload-message').textContent = data.filename + ' valid. Periksa preview sebelum menjalankan.';
+      document.getElementById('upload-message').className = 'hint';
+      updateRunAvailability();
+    })
+    .catch(function (error) { showError(error.message); })
+    .finally(function () { button.disabled = false; });
+});
+
+['roster', 'nim-column', 'sheet'].forEach(function (id) {
+  document.getElementById(id).addEventListener('change', invalidateRoster);
+});
+
+limitInput.addEventListener('input', updateRunAvailability);
+confirmationInput.addEventListener('input', updateRunAvailability);
+registrationUrlInput.addEventListener('input', updateRunAvailability);
+campaignInput.addEventListener('input', updateRunAvailability);
+approvedInput.addEventListener('change', updateRunAvailability);
+
+document.getElementById('run-form').addEventListener('submit', function (event) {
+  event.preventDefault();
+  runButton.disabled = true;
+  fetch('{% url "dashboard:api_yudisium_start" %}', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      upload_id: uploadId,
+      nim_column: document.getElementById('nim-column').value,
+      sheet: document.getElementById('sheet').value,
+      url: document.getElementById('registration-url').value,
+      limit: Number(limitInput.value),
+      delay: Number(document.getElementById('delay').value),
+      campaign_id: document.getElementById('campaign-id').value,
+      retry_failed: document.getElementById('retry-failed').checked,
+      approved: document.getElementById('approved').checked,
+      confirmation: confirmationInput.value
+    })
+  }).then(function (response) {
+    return response.json().then(function (data) { return {ok: response.ok, data: data}; });
+  }).then(function (result) {
+    if (!result.ok || !result.data.ok) throw new Error(result.data.message || 'Pekerjaan gagal dimulai.');
+    badge.textContent = 'menyiapkan';
+    badge.className = 'badge info';
+    startPolling();
+  }).catch(function (error) {
+    showError(error.message);
+    runButton.disabled = false;
+  });
+});
+
+function startPolling() {
+  if (pollHandle) clearInterval(pollHandle);
+  pollHandle = setInterval(refreshStatus, 1200);
+  refreshStatus();
+}
+
+function refreshStatus() {
+  fetch('{% url "dashboard:api_yudisium_status" %}').then(function (response) { return response.json(); }).then(function (state) {
+    if (state.log) logBox.textContent = state.log.join('\n');
+    document.getElementById('manual-panel').hidden = !state.awaiting_manual_login;
+    if (state.running) {
+      badge.textContent = state.message || 'berjalan';
+      badge.className = 'badge info';
+    } else if (state.finished) {
+      if (pollHandle) clearInterval(pollHandle);
+      pollHandle = null;
+      badge.textContent = state.rc === 0 ? 'selesai' : (state.rc === 2 ? 'hasil perlu pemeriksaan' : 'gagal');
+      badge.className = state.rc === 0 ? 'badge ok' : 'badge bad';
+      runButton.disabled = false;
+      document.getElementById('log-download').hidden = !state.log_file;
+    }
+  }).catch(function () {});
+}
+
+document.getElementById('btn-continue').addEventListener('click', function (event) {
+  var button = event.currentTarget;
+  button.disabled = true;
+  fetch('{% url "dashboard:api_yudisium_continue" %}', {method: 'POST'})
+    .then(function (response) { return response.json().then(function (data) { return {ok: response.ok, data: data}; }); })
+    .then(function (result) {
+      if (!result.ok) throw new Error(result.data.message || 'Bot belum menunggu login.');
+      document.getElementById('manual-panel').hidden = true;
+    })
+    .catch(function (error) { showError(error.message); })
+    .finally(function () { button.disabled = false; });
+});
+
+document.getElementById('graduation-validate-form').addEventListener('submit', function (event) {
+  event.preventDefault();
+  var button = document.getElementById('btn-validate-graduation');
+  var status = document.getElementById('graduation-validation-badge');
+  var summary = document.getElementById('graduation-validation-summary');
+  var errorsBody = document.getElementById('graduation-errors');
+  var form = new FormData(event.currentTarget);
+  button.disabled = true;
+  status.textContent = 'Memeriksa...';
+  status.className = 'badge info';
+  summary.textContent = '';
+  errorsBody.textContent = '';
+  document.getElementById('graduation-errors-wrap').hidden = true;
+  fetch('{% url "dashboard:api_yudisium_validate_import" %}', {method: 'POST', body: form})
+    .then(function (response) { return response.json().then(function (data) { return {ok: response.ok, data: data}; }); })
+    .then(function (result) {
+      if (!result.ok || !result.data.ok) throw new Error(result.data.message || 'File gagal diperiksa.');
+      var report = result.data.report;
+      status.textContent = report.valid ? 'Format valid' : 'Perlu diperbaiki';
+      status.className = report.valid ? 'badge ok' : 'badge bad';
+      summary.textContent = report.valid_rows + '/' + report.total + ' baris valid; ' + report.invalid_rows + ' baris bermasalah. Validasi ini tidak mengunggah file ke eCampuz.';
+      report.errors.forEach(function (item) {
+        var row = document.createElement('tr');
+        [item.row || '-', item.field || '-', item.message].forEach(function (value) {
+          var cell = document.createElement('td');
+          cell.textContent = String(value);
+          row.appendChild(cell);
+        });
+        errorsBody.appendChild(row);
+      });
+      document.getElementById('graduation-errors-wrap').hidden = !report.errors.length;
+    })
+    .catch(function (error) {
+      status.textContent = 'Gagal validasi';
+      status.className = 'badge bad';
+      summary.textContent = error.message;
+    })
+    .finally(function () { button.disabled = false; });
+});
+
+{% if job.running %}startPolling();{% endif %}
+updateRunAvailability();
+</script>
+{% endblock %}

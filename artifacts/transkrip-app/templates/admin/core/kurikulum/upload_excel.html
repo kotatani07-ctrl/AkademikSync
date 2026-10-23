@@ -29,8 +29,19 @@
           <option value="">--- Pilih Jenjang ---</option>
           <option value="D3">D3</option>
           <option value="S1">S1</option>
+          <option value="PROF">Profesi</option>
         </select>
         <p class="help">Jenjang pendidikan untuk kurikulum ini</p>
+      </div>
+
+      <div class="form-row">
+        <label for="id_prodi">Program Studi:</label>
+        <select name="prodi" id="id_prodi">
+          <option value="">--- Kurikulum umum / lama ---</option>
+          {% for value, label in prodi_choices %}
+          <option value="{{ value }}">{{ label }}</option>
+          {% endfor %}
+        </select>
       </div>
 
       <div class="form-row">

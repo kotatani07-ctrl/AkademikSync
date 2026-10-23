@@ -1,0 +1,113 @@
+{% extends "dashboard/base.html" %}
+{% load dash_filters %}
+{% block title %}Dashboard - eCampuz{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Dashboard Transkrip</h1>
+    <div class="sub">Data hasil scraping bot eCampuz &middot; {{ sums|length }} mahasiswa terindeks dari dhs_semua.csv</div>
+  </div>
+  <div class="hero-session">
+    <button class="ghost" id="btn-session" onclick="checkSession()">Cek sesi bot</button>
+    <span id="session-result" class="badge gray">belum dicek</span>
+  </div>
+</div>
+
+<div class="cards">
+  <div class="card">
+    <div class="label">Mahasiswa (angkatan {{ ckpt_nim }})</div>
+    <div class="value">{% if ckpt_nim %}{{ sums|length }}{% else %}0{% endif %} <small style="font-size:13px;color:var(--muted)">dari DHS</small></div>
+  </div>
+  <div class="card">
+    <div class="label">Baris nilai DHS</div>
+    <div class="value">{{ row_count }}</div>
+    <div class="hint">total baris transkrip di dhs_semua.csv</div>
+  </div>
+  <div class="card">
+    <div class="label">Terisi di Excel</div>
+    <div class="value ok">{{ filled.terisi }}</div>
+    <div class="hint">dari {{ filled.total }} baris template &middot; {{ filled.kosong }} kosong (normal)</div>
+  </div>
+  <div class="card">
+    <div class="label">IPK rata-rata</div>
+    <div class="value">{{ avg_ipk|fmt:'%.3f' }}</div>
+    <div class="hint">dihitung dari bobot nilai DHS</div>
+  </div>
+</div>
+
+<div class="grid-2">
+  <div class="panel">
+    <div class="p-head">Checkpoint scraping <span class="badge info">read-only</span></div>
+    <div class="p-body">
+      <table class="tbl">
+        <tr><th>Status</th><th class="num">Jumlah</th></tr>
+        <tr><td>Berhasil (done)</td><td class="num">{{ ckpt.done|length }}</td></tr>
+        <tr><td>Gagal (failed)</td><td class="num">{{ ckpt.failed|length }}</td></tr>
+        <tr><td>Sisa / belum diproses</td><td class="num">{{ sisa }}</td></tr>
+      </table>
+      {% if ckpt.failed %}
+      <p style="margin:12px 0 0;font-size:12px;color:var(--bad)">
+        Gagal: {% for nim in ckpt.failed %} <span class="mono">{{ nim }}</span>{% endfor %}
+      </p>
+      {% endif %}
+      <p style="margin:14px 0 0">
+        <a class="btn small" href="{% url 'dashboard:scrape' %}">Jalankan ulang bot &rarr;</a>
+        <a class="btn small ghost" href="{% url 'dashboard:export_dhs' %}">Unduh dhs_semua.csv</a>
+        <a class="btn small ghost" href="{% url 'dashboard:export_excel' %}">Unduh Excel terisi</a>
+      </p>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="p-head">Pemetaan MK</div>
+    <div class="p-body">
+      <table class="tbl">
+        <tr><th>Kelompok</th><th class="num">Jumlah</th></tr>
+        <tr><td><span class="badge exact">APPROVED-EXACT</span></td><td class="num">{{ mapping_counts.exact }}</td></tr>
+        <tr><td><span class="badge rec">APPROVED-REC</span></td><td class="num">{{ mapping_counts.rec }}</td></tr>
+        <tr><td><span class="badge skip">SKIP (ambigu)</span></td><td class="num">{{ mapping_counts.skip }}</td></tr>
+      </table>
+      <p style="margin:12px 0 0"><a class="btn small" href="{% url 'dashboard:pemetaan' %}">Lihat detail pemetaan &rarr;</a></p>
+    </div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="p-head">Mahasiswa IPK tertinggi (DHS)</div>
+  <div class="p-body" style="padding:0">
+    <table class="tbl">
+      <tr><th>NIM</th><th>Nama</th><th>Prodi</th><th class="num">SKS</th><th class="num">Jumlah MK</th><th class="num">IPK</th></tr>
+      {% for s in top %}
+      <tr>
+        <td class="mono"><a href="{% url 'dashboard:detail_mahasiswa' s.nim %}">{{ s.nim }}</a></td>
+        <td>{{ s.nama }}</td>
+        <td>{{ s.prodi }}</td>
+        <td class="num">{{ s.sks|fmt:'%.0f' }}</td>
+        <td class="num">{{ s.jumlah_mk }}</td>
+        <td class="num"><b>{{ s.ipk|fmt:'%.3f' }}</b></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="empty-col">Belum ada data DHS. Jalankan dari halaman "Jalankan Bot".</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+
+<script>
+function checkSession() {
+  var btn = document.getElementById('btn-session');
+  var out = document.getElementById('session-result');
+  btn.disabled = true;
+  out.textContent = 'memeriksa...';
+  out.className = 'badge gray';
+  fetch('{% url "dashboard:api_session" %}')
+    .then(function (r) { return r.json(); })
+    .then(function (j) {
+      out.textContent = j.ok ? 'sesi valid' : 'tidak aktif';
+      out.className = j.ok ? 'badge ok' : 'badge bad';
+    })
+    .catch(function () { out.textContent = 'error cek'; out.className = 'badge bad'; })
+    .finally(function () { btn.disabled = false; });
+}
+</script>
+{% endblock %}

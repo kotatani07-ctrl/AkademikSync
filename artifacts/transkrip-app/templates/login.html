@@ -3,41 +3,56 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Login — Sistem Transkrip & Ijazah</title>
+  <title>Login — AkademikSync</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
   <style>
+    :root {
+      --primary: #1a5276;
+      --primary-dark: #123b5d;
+      --accent: #2e86c1;
+      --surface: #ffffff;
+      --surface-soft: #f8fbff;
+      --text: #1f2937;
+      --muted: #64748b;
+      --line: #dfe7f1;
+      --shadow: 0 18px 48px rgba(17, 54, 85, 0.18);
+    }
+
     body {
       min-height: 100vh;
-      background: linear-gradient(135deg, #1a5276 0%, #2e86c1 60%, #1abc9c 100%);
+      background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 38%, var(--accent) 100%);
       display: flex; align-items: center; justify-content: center;
       font-family: 'Segoe UI', sans-serif;
     }
     .login-card {
-      background: #fff;
-      border-radius: 16px;
+      background: var(--surface);
+      border: 1px solid rgba(255,255,255,.2);
+      border-radius: 20px;
       padding: 40px 36px;
       width: 100%; max-width: 400px;
-      box-shadow: 0 20px 60px rgba(0,0,0,.18);
+      box-shadow: var(--shadow);
     }
     .login-icon {
       width: 64px; height: 64px;
-      background: linear-gradient(135deg, #1a5276, #2e86c1);
+      background: linear-gradient(135deg, var(--primary), var(--accent));
       border-radius: 16px;
       display: flex; align-items: center; justify-content: center;
       margin: 0 auto 20px;
       font-size: 2rem; color: #fff;
+      box-shadow: 0 12px 28px rgba(26, 82, 118, 0.2);
     }
-    h4 { font-weight: 700; color: #1e293b; text-align: center; margin-bottom: 4px; }
-    .subtitle { text-align: center; color: #64748b; font-size: .85rem; margin-bottom: 28px; }
-    .form-control:focus { border-color: #2e86c1; box-shadow: 0 0 0 .2rem rgba(46,134,193,.15); }
+    h4 { font-weight: 700; color: var(--text); text-align: center; margin-bottom: 4px; }
+    .subtitle { text-align: center; color: var(--muted); font-size: .85rem; margin-bottom: 28px; }
+    .form-control:focus { border-color: var(--accent); box-shadow: 0 0 0 .2rem rgba(46,134,193,.15); }
     .btn-login {
-      background: linear-gradient(135deg, #1a5276, #2e86c1);
+      background: linear-gradient(135deg, var(--primary), var(--accent));
       border: none; color: #fff; width: 100%; padding: 11px;
-      border-radius: 8px; font-weight: 600; font-size: .95rem;
-      transition: opacity .2s;
+      border-radius: 10px; font-weight: 600; font-size: .95rem;
+      transition: opacity .2s, transform .2s;
+      box-shadow: 0 12px 24px rgba(26, 82, 118, 0.18);
     }
-    .btn-login:hover { opacity: .9; color: #fff; }
+    .btn-login:hover { opacity: .96; color: #fff; transform: translateY(-1px); }
     .label-input { font-size: .85rem; font-weight: 500; color: #374151; margin-bottom: 4px; }
     .footer-text { text-align: center; font-size: .75rem; color: #94a3b8; margin-top: 24px; }
   </style>
@@ -45,7 +60,7 @@
 <body>
   <div class="login-card">
     <div class="login-icon"><i class="bi bi-mortarboard-fill"></i></div>
-    <h4>Sistem Transkrip & Ijazah</h4>
+    <h4>AkademikSync</h4>
     <p class="subtitle">Otomasi Generate Transkrip Neo Feeder PDDIKTI</p>
 
     {% if form.errors %}

@@ -1,0 +1,61 @@
+{% extends "dashboard/base.html" %}
+{% load dash_filters %}
+{% block title %}Mahasiswa - eCampuz{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Mahasiswa</h1>
+    <div class="sub">{{ rows|length }} NIM terindeks &middot; status dari checkpoint scraping</div>
+  </div>
+  <div class="hero-session">
+    <a class="btn small ghost" href="{% url 'dashboard:export_dhs' %}">Unduh dhs_semua.csv</a>
+    <a class="btn small" href="{% url 'dashboard:scrape' %}">Jalankan bot</a>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="p-body" style="padding:0">
+    <table class="tbl">
+      <tr>
+        <th>NIM</th>
+        <th>Nama</th>
+        <th>Prodi</th>
+        <th class="num">SKS</th>
+        <th class="num">MK</th>
+        <th class="num">IPK</th>
+        <th class="num">Baris Excel</th>
+        <th class="num">Terisi</th>
+        <th class="ctr">DHS JSON</th>
+        <th class="ctr">Status DHS</th>
+        <th></th>
+      </tr>
+      {% for r in rows %}
+      <tr>
+        <td class="mono">{{ r.nim }}</td>
+        <td>{{ r.nama|default:'—' }}</td>
+        <td>{{ r.prodi|default:'—' }}</td>
+        <td class="num">{{ r.sks|fmt:'%.0f' }}</td>
+        <td class="num">{{ r.jumlah_mk }}</td>
+        <td class="num"><b>{{ r.ipk|fmt:'%.3f' }}</b></td>
+        <td class="num">{{ r.baris_excel }}</td>
+        <td class="num">{{ r.terisi_excel }}</td>
+        <td class="ctr">{% if r.ada_json %}<span class="badge ok">ada</span>{% else %}<span class="badge gray">-</span>{% endif %}</td>
+        <td class="ctr">
+          {% if r.status_dhs == 'OK' %}<span class="badge ok">OK</span>
+          {% elif r.status_dhs == 'GAGAL' %}<span class="badge bad">GAGAL</span>
+          {% else %}<span class="badge gray">-</span>{% endif %}
+        </td>
+        <td style="text-align:right;white-space:nowrap">
+          {% if r.template_available %}
+          <a class="btn small ghost" href="{% url 'dashboard:export_transcript' r.nim %}">Excel</a>
+          {% endif %}
+          <a class="btn small ghost" href="{% url 'dashboard:detail_mahasiswa' r.nim %}">Detail &rarr;</a>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="11" class="empty-col">Belum ada data. Jalankan bot dari halaman "Jalankan Bot" dulu.</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+{% endblock %}

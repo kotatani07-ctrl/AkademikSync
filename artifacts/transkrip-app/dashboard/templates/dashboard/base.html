@@ -1,0 +1,36 @@
+{% load static %}
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}AkademikSync Dashboard{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'dashboard/style.css' %}">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-inner">
+      <a class="brand" href="{% url 'dashboard:dashboard' %}">Akademik<span>Sync</span></a>
+      <div class="nav-links">
+        {% with ep=request.resolver_match.url_name %}
+        <a class="{% if ep == 'dashboard' %}active{% endif %}" href="{% url 'dashboard:dashboard' %}">Dashboard</a>
+        <a class="{% if ep == 'daftar_mahasiswa' %}active{% endif %}" href="{% url 'dashboard:daftar_mahasiswa' %}">Mahasiswa</a>
+        <a class="{% if ep == 'pemetaan' %}active{% endif %}" href="{% url 'dashboard:pemetaan' %}">Pemetaan</a>
+        <a class="{% if ep == 'scrape' %}active{% endif %}" href="{% url 'dashboard:scrape' %}">Jalankan Bot</a>
+        <a class="{% if ep == 'login_page' %}active{% endif %}" href="{% url 'dashboard:login_page' %}">Login eCampuz</a>
+        <a class="{% if ep == 'yudisium_page' %}active{% endif %}" href="{% url 'dashboard:yudisium_page' %}">Yudisium</a>
+        <a class="{% if ep == 'grade_entry_page' %}active{% endif %}" href="{% url 'dashboard:grade_entry_page' %}">Input Nilai</a>
+        <a class="{% if ep == 'audit_page' %}active{% endif %}" href="{% url 'dashboard:audit_page' %}">Audit</a>
+        {% endwith %}
+      </div>
+      <span class="session-badge {% if session_file %}ok{% else %}no{% endif %}">{% if session_file %}Sesi tersimpan{% else %}Belum login{% endif %}</span>
+    </div>
+  </nav>
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="footer">
+    AkademikSync &middot; scraping read-only &middot; pendaftaran yudisium dengan konfirmasi operator
+  </footer>
+</body>
+</html>

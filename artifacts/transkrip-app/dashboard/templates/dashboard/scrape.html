@@ -1,0 +1,288 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Jalankan Bot - eCampuz{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Jalankan Bot Scraping</h1>
+    <div class="sub">Menjalankan <span class="mono">dhs_runner.run_dhs</span> di background &middot; hasil ditulis ke <span class="mono">data/ecampuz/out/</span> &middot; lanjut otomatis (checkpoint)</div>
+  </div>
+  <div class="hero-session">
+    <span id="job-badge" class="badge gray">idle</span>
+  </div>
+</div>
+
+<div class="grid-2">
+  <div class="panel">
+    <div class="p-head">Parameter pekerjaan</div>
+    <div class="p-body">
+      <form class="webform" id="job-form">
+        <div>
+          <label>File NIM (relatif ke data/ecampuz)</label>
+          <input type="text" name="nim_file" value="{{ cfg.nim_file }}">
+        </div>
+        <div>
+          <label>Angkatan</label>
+          <input type="text" name="angkatan" value="{{ cfg.angkatan }}">
+        </div>
+        <div>
+          <label>Prodi</label>
+          <select name="prodi" title="Pilih program studi yang valid">
+            {% for p in prodi_options %}
+              <option value="{{ p.value }}" {% if cfg.prodi == p.value %}selected{% endif %}>{{ p.label }}</option>
+            {% endfor %}
+            {% if cfg.prodi and cfg.prodi not in prodi_values %}
+              <option value="{{ cfg.prodi }}" selected>{{ cfg.prodi }}</option>
+            {% endif %}
+          </select>
+        </div>
+        <div>
+          <label>Limit (opsional)</label>
+          <input type="number" name="limit" placeholder="kosong = semua">
+        </div>
+        <div class="chk">
+          <input type="checkbox" name="per_mahasiswa" id="pm" checked>
+          <label for="pm" style="display:inline;margin:0">1 CSV+JSON per NIM</label>
+        </div>
+        <div class="chk">
+          <input type="checkbox" name="reset" id="reset">
+          <label for="reset" style="display:inline;margin:0">Ulang dari awal (reset)</label>
+        </div>
+        <div class="chk">
+          <input type="checkbox" name="retry_failed" id="rf">
+          <label for="rf" style="display:inline;margin:0">Coba lagi yang gagal</label>
+        </div>
+        <div class="chk">
+          <input type="checkbox" name="neo_feeder_fallback" id="neo-fallback">
+          <label for="neo-fallback" style="display:inline;margin:0">Cari nilai kosong di Neo Feeder</label>
+        </div>
+        <div class="scrape-actions">
+          <button type="button" id="btn-connect-run" class="scrape-primary">Hubungkan &amp; Jalankan Bot</button>
+          <button type="submit" id="btn-run" class="ghost">Mulai tanpa login otomatis</button>
+          <div class="scrape-secondary-actions">
+            <button type="button" class="ghost" id="btn-sess" onclick="checkSession()">Cek sesi</button>
+            <a class="btn ghost" href="{% url 'dashboard:login_page' %}">Login eCampuz</a>
+          </div>
+          <span id="sess-out" class="badge gray" style="margin-left:4px">-</span>
+        </div>
+      </form>
+      <p style="margin:14px 0 0;font-size:12px;color:var(--muted)">
+        Tombol <strong>Hubungkan &amp; Jalankan Bot</strong> mengecek sesi dan memulai bot jika sesi valid.
+        Jika sesi kedaluwarsa, login ulang dan jawab CAPTCHA di halaman
+        <a href="{% url 'dashboard:login_page' %}">Login eCampuz</a>, lalu jalankan bot kembali.
+        Neo Feeder fallback hanya mengisi nilai yang kosong dan perlu
+        dikonfigurasi lebih dahulu. Endpoint HTTP publik ditolak kecuali Anda memilih opt-in risiko secara eksplisit.
+      </p>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="p-head">Status checkpoint <span class="badge info">data/ecampuz/out/dhs_state_{{ cfg.angkatan }}.json</span></div>
+    <div class="p-body">
+      <table class="tbl">
+        <tr><td>Berhasil (done)</td><td class="num"><b>{{ ckpt.done|length }}</b></td></tr>
+        <tr><td>Gagal</td><td class="num"><b>{{ ckpt.failed|length }}</b></td></tr>
+      </table>
+      {% if ckpt.failed %}
+      <div style="margin-top:10px;font-size:12px;color:var(--bad)">Gagal: {% for nim in ckpt.failed %}<span class="mono">{{ nim }}</span> {% endfor %}</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="p-head">Log pekerjaan</div>
+  <div class="p-body">
+    <pre class="log" id="job-log">Belum ada pekerjaan. Klik "Mulai scraping".</pre>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="p-head">Pengaturan web</div>
+  <div class="p-body">
+    <form class="webform" id="cfg-form">
+      <div>
+        <label>Path Excel terisi (filled_excel)</label>
+        <input type="text" name="filled_excel" value="{{ cfg.filled_excel }}">
+      </div>
+      <div>
+        <label>File NIM default</label>
+        <input type="text" name="nim_file" value="{{ cfg.nim_file }}">
+      </div>
+      <div>
+        <label>Angkatan default</label>
+        <input type="text" name="angkatan" value="{{ cfg.angkatan }}">
+      </div>
+      <div>
+        <label>Prodi default</label>
+        <select name="prodi">
+          {% for p in prodi_options %}
+            <option value="{{ p.value }}" {% if cfg.prodi == p.value %}selected{% endif %}>{{ p.label }}</option>
+          {% endfor %}
+          {% if cfg.prodi and cfg.prodi not in prodi_values %}
+            <option value="{{ cfg.prodi }}" selected>{{ cfg.prodi }}</option>
+          {% endif %}
+        </select>
+      </div>
+      <div><button type="submit" class="ghost">Simpan pengaturan</button></div>
+    </form>
+  </div>
+</div>
+
+<script>
+var polling = null;
+var logEl = document.getElementById('job-log');
+var badgeEl = document.getElementById('job-badge');
+
+function doStart(event) {
+  event.preventDefault();
+  var form = new FormData(document.getElementById('job-form'));
+  var payload = {
+    nim_file: form.get('nim_file'),
+    angkatan: form.get('angkatan'),
+    prodi: form.get('prodi') || 'all',
+    per_mahasiswa: form.has('per_mahasiswa'),
+    reset: form.has('reset'),
+    retry_failed: form.has('retry_failed'),
+    neo_feeder_fallback: form.has('neo_feeder_fallback')
+  };
+  var limit = form.get('limit');
+  if (limit) payload.limit = parseInt(limit, 10);
+  setStartButtonsDisabled(true);
+  badgeEl.textContent = 'memulai...';
+  badgeEl.className = 'badge info';
+  fetch('{% url "dashboard:api_scrape_start" %}', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload)
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (j) {
+      if (!j.ok) {
+        badgeEl.textContent = j.message || 'gagal mulai';
+        badgeEl.className = 'badge bad';
+        setStartButtonsDisabled(false);
+        return;
+      }
+      logEl.textContent = 'menunggu log...';
+      startPolling();
+    })
+    .catch(function (e) {
+      badgeEl.textContent = 'error';
+      badgeEl.className = 'badge bad';
+      setStartButtonsDisabled(false);
+    });
+}
+
+function connectAndRun(event) {
+  if (event) event.preventDefault();
+  var form = new FormData(document.getElementById('job-form'));
+  var payload = {
+    nim_file: form.get('nim_file'),
+    angkatan: form.get('angkatan'),
+    prodi: form.get('prodi') || 'all',
+    per_mahasiswa: form.has('per_mahasiswa'),
+    reset: form.has('reset'),
+    retry_failed: form.has('retry_failed'),
+    neo_feeder_fallback: form.has('neo_feeder_fallback')
+  };
+  var limit = form.get('limit');
+  if (limit) payload.limit = parseInt(limit, 10);
+
+  var btn = document.getElementById('btn-connect-run');
+  setStartButtonsDisabled(true);
+  badgeEl.textContent = 'menghubungkan...';
+  badgeEl.className = 'badge info';
+  logEl.textContent = 'memeriksa sesi eCampuz...';
+
+  fetch('{% url "dashboard:api_scrape_connect_and_run" %}', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload)
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (j) {
+      if (!j.ok) {
+        badgeEl.textContent = j.message || 'gagal terhubung';
+        badgeEl.className = 'badge bad';
+        logEl.textContent = j.message || 'gagal terhubung';
+        setStartButtonsDisabled(false);
+        return;
+      }
+
+      badgeEl.textContent = j.message || 'terhubung';
+      badgeEl.className = 'badge ok';
+      logEl.textContent = 'sesi aktif, menunggu log pekerjaan...';
+      startPolling();
+    })
+    .catch(function () {
+      badgeEl.textContent = 'error koneksi';
+      badgeEl.className = 'badge bad';
+      logEl.textContent = 'error koneksi';
+      setStartButtonsDisabled(false);
+    });
+}
+
+function startPolling() {
+  if (polling) clearInterval(polling);
+  polling = setInterval(function () {
+    fetch('{% url "dashboard:api_scrape_status" %}')
+      .then(function (r) { return r.json(); })
+      .then(function (s) {
+        if (s.log && s.log.length) logEl.textContent = s.log.join('\n');
+        if (s.running) {
+          badgeEl.textContent = 'berjalan sejak ' + (s.started || '').replace('T', ' ').slice(0, 19).replace('+', ' ');
+          badgeEl.className = 'badge info';
+        } else if (s.finished) {
+          clearInterval(polling);
+          polling = null;
+          var rc = s.rc;
+          badgeEl.textContent = rc === 0 ? 'selesai OK' : (rc === 2 ? 'berhenti: sesi habis' : 'selesai dengan error');
+          badgeEl.className = rc === 0 ? 'badge ok' : 'badge bad';
+          setStartButtonsDisabled(false);
+        }
+      })
+      .catch(function () {});
+  }, 1500);
+}
+
+function setStartButtonsDisabled(disabled) {
+  document.getElementById('btn-run').disabled = disabled;
+  document.getElementById('btn-connect-run').disabled = disabled;
+}
+
+function checkSession() {
+  var btn = document.getElementById('btn-sess');
+  var out = document.getElementById('sess-out');
+  btn.disabled = true;
+  out.textContent = 'memeriksa...';
+  out.className = 'badge gray';
+  fetch('{% url "dashboard:api_session" %}')
+    .then(function (r) { return r.json(); })
+    .then(function (j) {
+      out.textContent = j.ok ? 'sesi valid' : 'tidak aktif';
+      out.className = j.ok ? 'badge ok' : 'badge bad';
+    })
+    .catch(function () { out.textContent = 'error'; out.className = 'badge bad'; })
+    .finally(function () { btn.disabled = false; });
+}
+
+document.getElementById('job-form').addEventListener('submit', doStart);
+document.getElementById('btn-connect-run').addEventListener('click', connectAndRun);
+
+document.getElementById('cfg-form').addEventListener('submit', function (event) {
+  event.preventDefault();
+  var form = new FormData(document.getElementById('cfg-form'));
+  var payload = {};
+  ['filled_excel', 'nim_file', 'angkatan', 'prodi'].forEach(function (k) {
+    payload[k] = form.get(k);
+  });
+  fetch('{% url "dashboard:api_config" %}', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload)
+  }).then(function (r) { return r.json(); }).then(function (j) {
+    alert(j.ok ? 'Pengaturan disimpan.' : 'Gagal menyimpan.');
+  });
+});
+</script>
+{% endblock %}

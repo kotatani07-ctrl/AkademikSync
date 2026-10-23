@@ -1,0 +1,32 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Audit - eCampuz{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Audit Log</h1>
+    <div class="sub">{{ rows|length }} entri terakhir dari <span class="mono">data/ecampuz/state/audit.jsonl</span></div>
+  </div>
+</div>
+<div class="panel">
+  <div class="p-body" style="padding:0">
+    <table class="tbl">
+      <tr>
+        <th>Waktu (UTC)</th><th>Method</th><th>URL</th><th class="ctr">Status</th><th class="num">Bytes</th><th class="num">ms</th><th>Catatan</th>
+      </tr>
+      {% for r in rows %}
+      <tr>
+        <td class="mono" style="white-space:nowrap">{{ r.ts|default:'' }}</td>
+        <td>{{ r.method|default:'' }}</td>
+        <td class="mono" style="max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ r.url|default:'' }}">{{ r.url|default:'' }}</td>
+        <td class="ctr">{{ r.status|default:'' }}</td>
+        <td class="num">{{ r.bytes|default:'' }}</td>
+        <td class="num">{{ r.elapsed_ms|default:'' }}</td>
+        <td>{{ r.note|default:'' }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" class="empty-col">Belum ada audit log.</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+{% endblock %}

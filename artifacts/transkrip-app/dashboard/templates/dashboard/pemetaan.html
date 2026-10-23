@@ -1,0 +1,52 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Pemetaan MK - eCampuz{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Pemetaan Mata Kuliah</h1>
+    <div class="sub">Kode MK template (P24xxx) &ne; kode eAkademik (FKS/PE/P21) &rarr; dicocokkan via nama. {{ mapping|length }} baris di <span class="mono">data/ecampuz/mapping_draft.csv</span>.</div>
+  </div>
+</div>
+
+<div class="filter-row">
+  <a class="btn ghost {% if group == 'all' %}active{% endif %}" href="{% url 'dashboard:pemetaan' %}?kelompok=all">Semua</a>
+  <a class="btn ghost {% if group == 'APPROVED-EXACT' %}active{% endif %}" href="{% url 'dashboard:pemetaan' %}?kelompok=APPROVED-EXACT">Exact</a>
+  <a class="btn ghost {% if group == 'APPROVED-REC' %}active{% endif %}" href="{% url 'dashboard:pemetaan' %}?kelompok=APPROVED-REC">Rekomendasi</a>
+  <a class="btn ghost {% if group == 'SKIP' %}active{% endif %}" href="{% url 'dashboard:pemetaan' %}?kelompok=SKIP">Skip (ambigu)</a>
+</div>
+
+<div class="panel">
+  <div class="p-body" style="padding:0">
+    <table class="tbl">
+      <tr>
+        <th>Kolom</th><th>Kode template</th><th>Nama di template</th><th>Kode eAkademik</th><th>Nama di DHS</th><th>Kesimpulan</th><th>Status</th>
+      </tr>
+      {% for m in mapping %}
+      <tr>
+        <td class="mono">{{ m.kolom|default:'' }}</td>
+        <td class="mono">{{ m.kode_template|default:'' }}</td>
+        <td>{{ m.nama_template|default:'' }}</td>
+        <td class="mono">{{ m.kode_dhs|default:'' }}</td>
+        <td>{{ m.nama_dhs|default:'' }}</td>
+        <td>{{ m.rekomendasi|default:'' }}</td>
+        <td>
+          {% if m.status == 'APPROVED-EXACT' %}<span class="badge exact">EXACT</span>
+          {% elif m.status == 'APPROVED-REC' %}<span class="badge rec">REC</span>
+          {% elif m.status == 'SKIP' %}<span class="badge skip">SKIP</span>
+          {% else %}<span class="badge gray">{{ m.status|default:'-' }}</span>{% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" class="empty-col">Data pemetaan kosong atau filter tidak cocok.</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="label">Catatan keputusan</div>
+  <p style="margin:6px 0 0;font-size:13px">
+    <b>APPROVED-EXACT</b> = nama cocok persis. <b>APPROVED-REC</b> = rekomendasi yang bisa dipertanggungjawabkan. <b>SKIP</b> = ambigu, dibiarkan kosong di Excel.
+  </p>
+</div>
+{% endblock %}

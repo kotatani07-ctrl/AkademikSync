@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Dashboard — Transkrip & Ijazah{% endblock %}
+{% block title %}Dashboard — AkademikSync{% endblock %}
 {% block page_title %}Dashboard{% endblock %}
 
 {% block content %}
@@ -18,7 +18,7 @@
 
 <!-- Stat cards -->
 <div class="row g-3 mb-4">
-  <div class="col-sm-4">
+  <div class="col-12 col-sm-6 col-lg-4">
     <div class="stat-card d-flex align-items-center gap-3">
       <div class="stat-icon" style="background:#dbeafe;">
         <i class="bi bi-journal-bookmark-fill text-primary"></i>
@@ -29,7 +29,7 @@
       </div>
     </div>
   </div>
-  <div class="col-sm-4">
+  <div class="col-12 col-sm-6 col-lg-4">
     <div class="stat-card d-flex align-items-center gap-3">
       <div class="stat-icon" style="background:#dcfce7;">
         <i class="bi bi-file-earmark-spreadsheet-fill" style="color:#16a34a"></i>
@@ -40,7 +40,7 @@
       </div>
     </div>
   </div>
-  <div class="col-sm-4">
+  <div class="col-12 col-sm-6 col-lg-4">
     <div class="stat-card d-flex align-items-center gap-3">
       <div class="stat-icon" style="background:#fef3c7;">
         <i class="bi bi-clock-history" style="color:#d97706"></i>
@@ -85,6 +85,50 @@
         </p>
         <a href="{% url 'generate_batch' %}" class="btn btn-success btn-sm">
           <i class="bi bi-upload me-1"></i> Upload File NIM
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Aksi eCampuz: penarikan nilai & yudisium (multi-NIM) -->
+<div class="row g-3 mb-4">
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-cloud-download text-primary"></i>
+        <span class="fw-semibold">Penarikan Nilai &amp; Data eCampuz</span>
+      </div>
+      <div class="card-body">
+        <p class="text-muted small mb-3">
+          Jalankan bot untuk menarik nilai &amp; data transkrip (DHS) dari eCampuz untuk
+          <strong>banyak NIM sekaligus</strong> — dari file daftar NIM atau per angkatan.
+          Data hasil penarikan otomatis dipakai Generate Single &amp; Batch sebagai
+          pengisi nilai saat Neo Feeder kosong.
+        </p>
+        <a href="{% url 'dashboard:scrape' %}" class="btn btn-primary btn-sm">
+          <i class="bi bi-play-fill me-1"></i> Jalankan Bot Scraping
+        </a>
+        <a href="{% url 'dashboard:export_dhs' %}" class="btn btn-outline-secondary btn-sm" target="_blank">
+          <i class="bi bi-download me-1"></i> Unduh Hasil (CSV)
+        </a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-award text-warning"></i>
+        <span class="fw-semibold">Pendaftaran Yudisium Bulk</span>
+      </div>
+      <div class="card-body">
+        <p class="text-muted small mb-3">
+          Daftarkan <strong>banyak mahasiswa</strong> yudisium ke eCampuz dari roster
+          CSV/Excel: validasi &amp; preview roster, batas per batch, jeda antar mahasiswa,
+          lalu pendaftaran berurutan dengan penanganan baris gagal.
+        </p>
+        <a href="{% url 'dashboard:yudisium_page' %}" class="btn btn-warning btn-sm">
+          <i class="bi bi-play-fill me-1"></i> Buka Pendaftaran Yudisium
         </a>
       </div>
     </div>

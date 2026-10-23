@@ -1,0 +1,216 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Login eCampuz — Dashboard{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Login eCampuz</h1>
+    <div class="sub">Login ke eAkademik &middot; captcha dijawab manual &middot; sesi hasil login dipakai ulang oleh scraper</div>
+  </div>
+  <div class="hero-session">
+    <span id="login-badge" class="badge gray">memeriksa...</span>
+  </div>
+</div>
+
+<div class="grid-2">
+  <div class="panel">
+    <div class="p-head">Login dengan form (captcha dua-langkah)</div>
+    <div class="p-body">
+      <form class="webform" id="login-form">
+        <div>
+          <label>Username eAkademik</label>
+          <input type="text" name="username" id="login-username" autocomplete="username">
+        </div>
+        <div>
+          <label>Password</label>
+          <input type="password" name="password" id="login-password" autocomplete="current-password">
+        </div>
+        <div>
+          <button type="button" id="btn-captcha" onclick="requestCaptcha()">1 &middot; Ambil soal captcha</button>
+        </div>
+      </form>
+
+      <div id="captcha-box" style="display:none;margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Soal captcha — ketik jawabannya:</div>
+        <div class="mono" id="captcha-soal" style="font-size:18px;font-weight:700;color:var(--brand);margin-bottom:12px">-</div>
+        <form class="webform" id="answer-form">
+          <div>
+            <label>Jawaban captcha</label>
+            <input type="text" name="answer" id="captcha-answer" autocomplete="off">
+          </div>
+          <div>
+            <button type="submit" id="btn-login">2 &middot; Login</button>
+          </div>
+        </form>
+      </div>
+
+      <div style="margin-top:14px">
+        <button type="button" class="ghost" onclick="browserLogin()">Login lewat browser (captcha di jendela)</button>
+      </div>
+
+      <div id="login-out" style="margin-top:12px;font-size:13px"></div>
+
+      <p style="margin:14px 0 0;font-size:12px;color:var(--muted)">
+        Captcha eAkademik berupa hitungan sederhana dan sengaja tidak dipecahkan otomatis.
+        Jalur form ini = satu percobaan per permintaan; bila jawaban salah, soal baru disiapkan.
+        Username/password hanya tersimpan sementara di memori saat soal captcha aktif, lalu
+        disimpan terenkripsi DPAPI bila login berhasil (remember — perilaku sama dengan CLI scraper).
+      </p>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="p-head">Status sesi</div>
+    <div class="p-body">
+      <button type="button" id="btn-sess" onclick="checkSession()">Cek sesi</button>
+      <span id="sess-out" class="badge gray" style="margin-left:6px">-</span>
+      <div id="sess-detail" style="margin-top:10px;font-size:12px;color:var(--muted)"></div>
+
+      <div style="margin-top:16px">
+        <button type="button" class="ghost" onclick="clearSession()">Hapus sesi tersimpan</button>
+      </div>
+
+      <p style="margin:14px 0 0;font-size:12px;color:var(--muted)">
+        Sesi tersimpan di <span class="mono">data/ecampuz/state/session.json</span> dan dipakai ulang
+        oleh pekerjaan scraping tanpa login ulang. Bila scraping berhenti dengan "sesi habis",
+        login ulang lewat halaman ini.
+      </p>
+    </div>
+  </div>
+</div>
+
+<script>
+var state = { loginId: null, username: '', password: '' };
+
+function setBadge(el, text, cls) {
+  el.textContent = text;
+  el.className = 'badge ' + (cls || 'gray');
+}
+
+function out(msg, cls) {
+  var el = document.getElementById('login-out');
+  el.innerHTML = msg;
+  el.className = cls === 'bad' ? 'bad-text' : '';
+}
+
+function readCreds() {
+  state.username = document.getElementById('login-username').value;
+  state.password = document.getElementById('login-password').value;
+}
+
+function checkSession() {
+  var btn = document.getElementById('btn-sess');
+  var badge = document.getElementById('sess-out');
+  var detail = document.getElementById('sess-detail');
+  btn.disabled = true;
+  setBadge(badge, 'memeriksa...', 'gray');
+  detail.textContent = '';
+  fetch('{% url "dashboard:api_session" %}')
+    .then(function (r) { return r.json(); })
+    .then(function (j) {
+      setBadge(badge, j.ok ? 'sesi valid' : 'tidak aktif', j.ok ? 'ok' : 'bad');
+      detail.textContent = j.detail || '';
+      setBadge(document.getElementById('login-badge'),
+        j.ok ? 'Sesi valid' : 'Belum login', j.ok ? 'ok' : 'bad');
+    })
+    .catch(function () { setBadge(badge, 'error', 'bad'); })
+    .finally(function () { btn.disabled = false; });
+}
+
+function requestCaptcha() {
+  readCreds();
+  if (!state.username || !state.password) {
+    out('Username dan password wajib diisi lebih dulu.', 'bad');
+    return;
+  }
+  var btn = document.getElementById('btn-captcha');
+  btn.disabled = true;
+  out('Memuat soal captcha...', '');
+  fetch('{% url "dashboard:api_login_captcha" %}', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: state.username, password: state.password })
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (j) {
+      btn.disabled = false;
+      if (!j.ok) { out('Gagal: ' + (j.message || 'unknown'), 'bad'); return; }
+      state.loginId = j.login_id;
+      document.getElementById('captcha-soal').textContent = j.soal;
+      document.getElementById('captcha-box').style.display = 'block';
+      document.getElementById('captcha-answer').focus();
+      out('Soal captcha siap. Jawab lalu klik <b>Login</b>.');
+    })
+    .catch(function () {
+      btn.disabled = false;
+      out('Gagal memuat captcha (jaringan/error).', 'bad');
+    });
+}
+
+function submitLogin(event) {
+  event.preventDefault();
+  if (!state.loginId) { out('Ambil soal captcha dulu.', 'bad'); return; }
+  var answer = document.getElementById('captcha-answer').value;
+  var btn = document.getElementById('btn-login');
+  btn.disabled = true;
+  out('Mengirim jawaban...', '');
+  fetch('{% url "dashboard:api_login_submit" %}', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ login_id: state.loginId, answer: answer })
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (j) {
+      btn.disabled = false;
+      if (j.ok) {
+        out('Login berhasil. Sesi eCampuz tersimpan.', '');
+        document.getElementById('captcha-box').style.display = 'none';
+        checkSession();
+        return;
+      }
+      if (j.captcha_wrong && j.new_captcha) {
+        state.loginId = j.new_captcha.id;
+        document.getElementById('captcha-soal').textContent = j.new_captcha.soal;
+        document.getElementById('captcha-answer').value = '';
+        document.getElementById('captcha-answer').focus();
+        out(j.message, 'bad');
+        return;
+      }
+      out(j.message || 'Login gagal.', 'bad');
+    })
+    .catch(function () {
+      btn.disabled = false;
+      out('Error jaringan.', 'bad');
+    });
+}
+
+function browserLogin() {
+  readCreds();
+  fetch('{% url "dashboard:api_login_browser" %}', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: state.username, password: state.password })
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (j) {
+      out(j.ok ? j.message : (j.message || 'Gagal membuka browser.'), j.ok ? '' : 'bad');
+      if (j.ok) { setTimeout(checkSession, 4000); }
+    })
+    .catch(function () { out('Error membuka browser.', 'bad'); });
+}
+
+function clearSession() {
+  if (!confirm('Hapus sesi eCampuz tersimpan?')) return;
+  fetch('{% url "dashboard:api_login_clear" %}', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}'
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (j) { out(j.ok ? j.message : (j.message || 'Gagal.'), j.ok ? '' : 'bad'); checkSession(); })
+    .catch(function () { out('Error menghapus sesi.', 'bad'); });
+}
+
+document.getElementById('answer-form').addEventListener('submit', submitLogin);
+checkSession();
+</script>
+{% endblock %}
