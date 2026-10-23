@@ -128,13 +128,27 @@ def detail_mahasiswa(request, nim: str):
 
 @login_required
 def pemetaan(request):
-    mapping = d.mapping_rows()
+    all_mapping = d.mapping_rows()
+    exact = sum(1 for m in all_mapping if m.get("status") == "APPROVED-EXACT")
+    rec = sum(1 for m in all_mapping if m.get("status") == "APPROVED-REC")
+    skip = sum(1 for m in all_mapping if m.get("status") == "SKIP")
+    counts = {
+        "total": len(all_mapping),
+        "exact": exact,
+        "rec": rec,
+        "skip": skip,
+    }
+
     group = request.GET.get("kelompok", "all")
     if group != "all":
-        mapping = [m for m in mapping if m.get("status") == group]
+        mapping = [m for m in all_mapping if m.get("status") == group]
+    else:
+        mapping = all_mapping
+
     return render(request, "dashboard/pemetaan.html", {
         "mapping": mapping,
         "group": group,
+        "counts": counts,
     })
 
 
@@ -173,7 +187,16 @@ def audit_page(request):
 @login_required
 def ecampuz_login_page(request):
     cfg = d.web_config()
-    return render(request, "dashboard/login.html", {"cfg": cfg})
+    try:
+        ec_cfg = jobs.load_config()
+        default_user = ec_cfg.username or "AKADEMIK@AKD"
+    except Exception:  # noqa: BLE001
+        default_user = "AKADEMIK@AKD"
+    return render(
+        request,
+        "dashboard/login.html",
+        {"cfg": cfg, "default_username": default_user},
+    )
 
 
 # ─── API: sesi & scraping ─────────────────────────────────────────────────────
@@ -203,7 +226,7 @@ def api_login_captcha(request):
             body.get("username", ""), body.get("password", "")
         )
     except Exception as exc:  # noqa: BLE001
-        return JsonResponse({"ok": False, "message": f"Gagal memuat captcha: {exc}"})
+        return JsonResponse({"ok": False, "message": f"Gagal memuat captcha: {exc}"} )
     return JsonResponse({"ok": True, "login_id": data["id"], "soal": data["soal"]})
 
 
@@ -213,7 +236,10 @@ def api_login_submit(request):
     """Langkah 2: kirim jawaban captcha. Bila salah, server siapkan soal baru."""
     body = _json_body(request)
     result = jobs.submit_login_captcha(
-        body.get("login_id", ""), body.get("answer", "")
+        body.get("login_id", ""),
+        body.get("answer", ""),
+        body.get("username", ""),
+        body.get("password", ""),
     )
     return JsonResponse(result)
 

@@ -181,8 +181,10 @@ def _prune_pending_login() -> None:
 def request_login_captcha(username: str = "", password: str = "") -> dict:
     """Langkah 1: ambil soal captcha baru dan simpan state login sementara."""
     client = _client()
+    client.clear_session()
     soal, token = client.fetch_captcha()
     login_id = uuid.uuid4().hex[:12]
+    cookies = {c.name: c.value for c in client.session.cookies}
     with LOGIN_PENDING_LOCK:
         _prune_pending_login()
         LOGIN_PENDING[login_id] = {
@@ -190,12 +192,18 @@ def request_login_captcha(username: str = "", password: str = "") -> dict:
             "password": password,
             "soal": soal,
             "token": token,
+            "cookies": cookies,
             "at": time.time(),
         }
     return {"id": login_id, "soal": soal}
 
 
-def submit_login_captcha(login_id: str, answer: str) -> dict:
+def submit_login_captcha(
+    login_id: str,
+    answer: str,
+    username: str = "",
+    password: str = "",
+) -> dict:
     """Langkah 2: kirim jawaban captcha (satu percobaan per-request web).
 
     Bila captcha salah, kembalikan soal baru ('new_captcha') agar pengguna bisa
@@ -209,18 +217,24 @@ def submit_login_captcha(login_id: str, answer: str) -> dict:
     if time.time() - pend["at"] > LOGIN_PENDING_TTL:
         return {"ok": False, "captcha_wrong": False,
                 "message": "Captcha kedaluwarsa (5 menit). Minta captcha baru."}
-    if not pend["username"] or not pend["password"]:
+
+    user = username.strip() or pend.get("username", "").strip()
+    pwd = password or pend.get("password", "")
+
+    if not user or not pwd:
         return {"ok": False, "captcha_wrong": False, "message": "Username/password kosong."}
     if not answer.strip():
         return {"ok": False, "captcha_wrong": False, "message": "Jawaban captcha kosong."}
 
     client = _client()
     client.clear_session()
-    client.cfg.username = pend["username"]
+    for name, value in (pend.get("cookies") or {}).items():
+        client.session.cookies.set(name, value)
+    client.cfg.username = user
 
     payload = {
-        "user[ID]": pend["username"],
-        "user[passwd]": pend["password"],
+        "user[ID]": user,
+        "user[passwd]": pwd,
         "captcha_answer": answer.strip(),
         "captcha_token": pend["token"],
         "action": "submitted",
@@ -249,8 +263,8 @@ def submit_login_captcha(login_id: str, answer: str) -> dict:
         # Remember (DPAPI) — hasil login ini jadi kredensial default scraper.
         try:
             store = CredentialStore(client.cfg.credential_path)
-            if store.load() != (pend["username"], pend["password"]):
-                store.save(pend["username"], pend["password"])
+            if store.load() != (user, pwd):
+                store.save(user, pwd)
                 client.audit.event("credentials_saved", method="dpapi")
         except Exception:  # noqa: BLE001
             pass
@@ -261,14 +275,15 @@ def submit_login_captcha(login_id: str, answer: str) -> dict:
     )
     if "captcha" in last_err.lower():
         try:
-            nc = request_login_captcha(pend["username"], pend["password"])
+            nc = request_login_captcha(user, pwd)
         except Exception as exc:  # noqa: BLE001
             return {"ok": False, "captcha_wrong": True,
                     "message": f"Captcha salah; gagal memuat soal baru: {exc}"}
+        err_msg = last_err.rstrip(".! ")
         return {
             "ok": False,
             "captcha_wrong": True,
-            "message": "Captcha salah. Soal baru sudah disiapkan — jawab dan kirim lagi.",
+            "message": f"{err_msg}. Soal baru sudah disiapkan — jawab dan kirim lagi.",
             "new_captcha": nc,
         }
     if "salah" in last_err.lower() or "password" in last_err.lower():

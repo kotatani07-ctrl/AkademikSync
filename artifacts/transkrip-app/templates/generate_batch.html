@@ -24,8 +24,7 @@
             <label class="form-label" for="{{ form.prodi.id_for_label }}">{{ form.prodi.label }}</label>
             {{ form.prodi }}
             {% if form.prodi.errors %}<div class="text-danger small mt-1">{{ form.prodi.errors }}</div>{% endif %}
-          </div>
-          <div class="mb-4">
+          <div class="mb-3">
             <label class="form-label">{{ form.file_nim.label }}</label>
             {{ form.file_nim }}
             <div class="form-text">
@@ -37,23 +36,48 @@
             <div class="text-danger small mt-1">{{ form.file_nim.errors }}</div>
             {% endif %}
           </div>
+          <div class="mb-4">
+            <label class="form-label" for="{{ form.format_output.id_for_label }}">{{ form.format_output.label }}</label>
+            {{ form.format_output }}
+            <div class="form-text">
+              Pilih <strong>Paket ZIP</strong> untuk mendapatkan berkas transkrip resmi per mahasiswa + laporan rekapitulasi.
+            </div>
+            {% if form.format_output.errors %}<div class="text-danger small mt-1">{{ form.format_output.errors }}</div>{% endif %}
+          </div>
 
           <button type="submit" class="btn btn-success w-100" id="submitBtn">
-            <i class="bi bi-play-circle me-2"></i>Proses &amp; Unduh Excel Batch
+            <i class="bi bi-play-circle me-2"></i>Proses &amp; Unduh Hasil Batch
           </button>
         </form>
 
-        <div id="loadingIndicator" class="text-center py-4 d-none">
-          <div class="spinner-border text-success mb-3" role="status"></div>
-          <p class="text-muted small mb-1">Memproses daftar NIM...</p>
-          <p class="text-muted" style="font-size:.75rem">
-            Proses berjalan sinkron — satu per satu ke Neo Feeder.<br>
-            Untuk 50–100 NIM bisa memakan beberapa menit. NIM yang sedang diproses akan diselesaikan sebelum dibatalkan.
-          </p>
-          <button type="button" class="btn btn-outline-danger btn-sm" id="cancelBtn"
-                  data-cancel-url="{% url 'cancel_generate_batch' batch_id %}">
-            <i class="bi bi-x-circle me-1"></i>Batalkan Batch
-          </button>
+        <!-- Progress Bar & Status Asinkron -->
+        <div id="progressContainer" class="py-3 d-none">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="small fw-semibold text-primary" id="progressLabel">Memproses daftar NIM...</span>
+            <span class="badge text-bg-primary" id="progressPercent">0%</span>
+          </div>
+          <div class="progress mb-3" style="height: 12px;">
+            <div class="progress-bar progress-bar-striped progress-bar-animated bg-success"
+                 id="progressBar" role="progressbar" style="width: 0%"></div>
+          </div>
+          <div class="d-flex justify-content-between align-items-center small text-muted mb-3">
+            <div>
+              <i class="bi bi-person-gear me-1"></i>NIM Aktif:
+              <span class="badge text-bg-light border font-monospace" id="currentNimBadge">-</span>
+            </div>
+            <div>
+              <span id="processedCounter">0</span> / <span id="totalCounter">0</span> NIM
+            </div>
+          </div>
+          <div class="d-flex gap-2 justify-content-between">
+            <button type="button" class="btn btn-outline-danger btn-sm" id="cancelBtn"
+                    data-cancel-url="{% url 'cancel_generate_batch' batch_id %}">
+              <i class="bi bi-x-circle me-1"></i>Batalkan Batch
+            </button>
+            <a href="#" class="btn btn-success btn-sm d-none" id="downloadBtn">
+              <i class="bi bi-download me-1"></i>Unduh Berkas Hasil
+            </a>
+          </div>
           <p id="cancelStatus" class="text-muted small mt-2 mb-0" role="status"></p>
         </div>
       </div>
@@ -79,20 +103,18 @@
 
   <!-- Hasil proses -->
   <div class="col-md-7">
-    {% if hasil_batch %}
-    <div class="card">
+    <div class="card" id="resultsCard" {% if not hasil_batch %}style="display:none;"{% endif %}>
       <div class="card-header d-flex align-items-center justify-content-between">
         <span class="fw-semibold"><i class="bi bi-list-check me-2"></i>Hasil Proses</span>
         <div class="d-flex gap-2">
-          {% with berhasil=hasil_batch|length %}
-          <span class="badge bg-success">{{ berhasil }} total</span>
-          {% endwith %}
+          <span class="badge bg-success" id="successBadge">{{ hasil_batch|length }} selesai</span>
+          <span class="badge bg-danger d-none" id="errorBadge">0 gagal</span>
         </div>
       </div>
       <div class="card-body p-0">
-        <div class="table-responsive">
+        <div class="table-responsive" style="max-height: 480px; overflow-y: auto;">
           <table class="table table-hover table-sm mb-0">
-            <thead class="table-light">
+            <thead class="table-light sticky-top">
               <tr>
                 <th>NIM</th>
                 <th>Nama</th>
@@ -103,41 +125,19 @@
                 <th>Status</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody id="resultsTableBody">
               {% for h in hasil_batch %}
               <tr class="{% if h.status == 'error' %}table-danger{% endif %}">
                 <td class="font-monospace small">{{ h.nim }}</td>
                 <td class="small">{{ h.nama }}
                   {% if h.status == 'success' and h.sumber_nilai == 'dhs' %}
-                  <span class="badge text-bg-warning" title="Nilai dari hasil scraping eCampuz (fallback karena Feeder kosong)">DHS</span>
+                  <span class="badge text-bg-warning" title="Nilai dari scraping eCampuz (fallback)">DHS</span>
                   {% endif %}
                 </td>
-                <td>
-                  {% if h.status == 'success' %}
-                  <strong>{{ h.ipk }}</strong>
-                  {% else %}—{% endif %}
-                </td>
-                <td>
-                  {% if h.status == 'success' and h.mk_kosong > 0 %}
-                  <span class="badge badge-kosong">{{ h.mk_kosong }}</span>
-                  {% elif h.status == 'success' %}
-                  <span class="text-muted">0</span>
-                  {% else %}—{% endif %}
-                </td>
-                <td>
-                  {% if h.status == 'success' and h.mk_retake > 0 %}
-                  <span class="badge badge-retake">{{ h.mk_retake }}</span>
-                  {% elif h.status == 'success' %}
-                  <span class="text-muted">0</span>
-                  {% else %}—{% endif %}
-                </td>
-                <td>
-                  {% if h.status == 'success' and h.mk_tidak_dikenali > 0 %}
-                  <span class="badge badge-unknown">{{ h.mk_tidak_dikenali }}</span>
-                  {% elif h.status == 'success' %}
-                  <span class="text-muted">0</span>
-                  {% else %}—{% endif %}
-                </td>
+                <td>{% if h.status == 'success' %}<strong>{{ h.ipk }}</strong>{% else %}—{% endif %}</td>
+                <td>{{ h.mk_kosong|default:0 }}</td>
+                <td>{{ h.mk_retake|default:0 }}</td>
+                <td>{{ h.mk_tidak_dikenali|default:0 }}</td>
                 <td>
                   {% if h.status == 'success' %}
                   <span class="badge bg-success">OK</span>
@@ -146,28 +146,20 @@
                   {% endif %}
                 </td>
               </tr>
-              {% if h.status == 'error' %}
-              <tr class="table-danger">
-                <td colspan="7" class="small text-danger py-1 ps-4">
-                  <i class="bi bi-exclamation-triangle me-1"></i>{{ h.error }}
-                </td>
-              </tr>
-              {% endif %}
               {% endfor %}
             </tbody>
           </table>
         </div>
       </div>
     </div>
-    {% else %}
-    <div class="card h-100" style="min-height: 280px;">
+
+    <div class="card h-100" id="placeholderCard" {% if hasil_batch %}style="display:none;"{% endif %} style="min-height: 280px;">
       <div class="card-body d-flex flex-column align-items-center justify-content-center text-muted">
         <i class="bi bi-file-earmark-spreadsheet fs-1 mb-3 opacity-25"></i>
-        <p class="mb-1">Hasil proses akan tampil di sini</p>
-        <small>File Excel batch akan otomatis diunduh setelah proses selesai</small>
+        <p class="mb-1">Hasil proses akan tampil di sini secara real-time</p>
+        <small>File transkrip akan otomatis diunduh setelah proses selesai</small>
       </div>
     </div>
-    {% endif %}
   </div>
 </div>
 {% endblock %}
@@ -176,18 +168,155 @@
 <script>
 const batchForm = document.getElementById('batchForm');
 const submitBtn = document.getElementById('submitBtn');
-const loadingIndicator = document.getElementById('loadingIndicator');
+const progressContainer = document.getElementById('progressContainer');
+const progressBar = document.getElementById('progressBar');
+const progressPercent = document.getElementById('progressPercent');
+const progressLabel = document.getElementById('progressLabel');
+const currentNimBadge = document.getElementById('currentNimBadge');
+const processedCounter = document.getElementById('processedCounter');
+const totalCounter = document.getElementById('totalCounter');
 const cancelBtn = document.getElementById('cancelBtn');
+const cancelStatus = document.getElementById('cancelStatus');
+const downloadBtn = document.getElementById('downloadBtn');
+const resultsCard = document.getElementById('resultsCard');
+const placeholderCard = document.getElementById('placeholderCard');
+const resultsTableBody = document.getElementById('resultsTableBody');
+const successBadge = document.getElementById('successBadge');
+const errorBadge = document.getElementById('errorBadge');
 
-batchForm.addEventListener('submit', function() {
+let pollInterval = null;
+let activeBatchId = null;
+
+batchForm.addEventListener('submit', async function(e) {
+  e.preventDefault();
+
+  const fileInput = batchForm.querySelector('[name=file_nim]');
+  if (!fileInput.files || fileInput.files.length === 0) {
+    alert("Silakan pilih file daftar NIM terlebih dahulu.");
+    return;
+  }
+
+  // Siapkan FormData
+  const formData = new FormData(batchForm);
+  formData.append('is_async', '1');
+
+  submitBtn.disabled = true;
   submitBtn.classList.add('d-none');
-  loadingIndicator.classList.remove('d-none');
+  progressContainer.classList.remove('d-none');
+  placeholderCard.style.display = 'none';
+  resultsCard.style.display = 'block';
+  resultsTableBody.innerHTML = '';
+
+  try {
+    const res = await fetch(batchForm.action || window.location.href, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      credentials: 'same-origin',
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      throw new Error(data.error || "Gagal memulai proses batch.");
+    }
+
+    activeBatchId = data.batch_id;
+    totalCounter.textContent = data.total;
+    cancelBtn.dataset.cancelUrl = `/generate/batch/${activeBatchId}/cancel/`;
+
+    // Mulai polling
+    startPolling(activeBatchId);
+  } catch (err) {
+    alert("Error: " + err.message);
+    submitBtn.disabled = false;
+    submitBtn.classList.remove('d-none');
+    progressContainer.classList.add('d-none');
+    placeholderCard.style.display = 'block';
+  }
 });
 
+function startPolling(batchId) {
+  if (pollInterval) clearInterval(pollInterval);
+
+  pollInterval = setInterval(async () => {
+    try {
+      const res = await fetch(`/generate/batch/${batchId}/status/`, {
+        credentials: 'same-origin',
+      });
+      if (!res.ok) return;
+
+      const data = await res.json();
+
+      // Update progress bar
+      const pct = data.percent || 0;
+      progressBar.style.width = pct + '%';
+      progressPercent.textContent = pct + '%';
+      processedCounter.textContent = data.processed || 0;
+      totalCounter.textContent = data.total || 0;
+      if (data.current_nim) {
+        currentNimBadge.textContent = data.current_nim;
+      }
+
+      // Update counters
+      successBadge.textContent = (data.success_count || 0) + ' selesai';
+      if (data.error_count > 0) {
+        errorBadge.textContent = data.error_count + ' gagal';
+        errorBadge.classList.remove('d-none');
+      }
+
+      // Render table rows
+      if (data.results && data.results.length > 0) {
+        resultsTableBody.innerHTML = '';
+        data.results.forEach(h => {
+          const tr = document.createElement('tr');
+          if (h.status === 'error') tr.className = 'table-danger';
+          tr.innerHTML = `
+            <td class="font-monospace small">${h.nim}</td>
+            <td class="small">${h.nama || '-'} ${h.sumber_nilai === 'dhs' ? '<span class="badge text-bg-warning">DHS</span>' : ''}</td>
+            <td><strong>${h.ipk || '—'}</strong></td>
+            <td>${h.mk_kosong || 0}</td>
+            <td>${h.mk_retake || 0}</td>
+            <td>${h.mk_tidak_dikenali || 0}</td>
+            <td>${h.status === 'success' ? '<span class="badge bg-success">OK</span>' : '<span class="badge bg-danger" title="' + (h.error || '') + '">Error</span>'}</td>
+          `;
+          resultsTableBody.appendChild(tr);
+        });
+      }
+
+      // Selesai atau Dibatalkan
+      if (data.status === 'completed' || data.status === 'cancelled' || data.download_ready) {
+        clearInterval(pollInterval);
+        progressBar.classList.remove('progress-bar-animated');
+
+        if (data.status === 'cancelled') {
+          progressLabel.textContent = 'Proses batch dibatalkan.';
+          progressBar.classList.remove('bg-success');
+          progressBar.classList.add('bg-warning');
+        } else {
+          progressLabel.textContent = 'Pemrosesan batch selesai!';
+        }
+
+        cancelBtn.classList.add('d-none');
+        if (data.download_ready) {
+          const downloadUrl = `/generate/batch/${batchId}/download/`;
+          downloadBtn.href = downloadUrl;
+          downloadBtn.classList.remove('d-none');
+          // Auto trigger download
+          window.location.href = downloadUrl;
+        }
+      }
+    } catch (e) {
+      console.warn("Polling error:", e);
+    }
+  }, 900);
+}
+
 cancelBtn.addEventListener('click', async function() {
+  if (!cancelBtn.dataset.cancelUrl) return;
   cancelBtn.disabled = true;
-  document.getElementById('cancelStatus').textContent =
-    'Permintaan diterima; NIM yang sedang diproses akan diselesaikan.';
+  cancelStatus.textContent = 'Meminta pembatalan; menyelesaikan NIM aktif...';
   try {
     const response = await fetch(cancelBtn.dataset.cancelUrl, {
       method: 'POST',
@@ -198,15 +327,12 @@ cancelBtn.addEventListener('click', async function() {
       credentials: 'same-origin',
     });
     const result = await response.json();
-    if (!response.ok) {
-      throw new Error(result.error || 'Permintaan pembatalan gagal.');
-    }
-    document.getElementById('cancelStatus').textContent = result.cancelled
-      ? 'Batch akan berhenti setelah NIM yang sedang diproses selesai.'
-      : 'Batch sudah selesai diproses.';
+    cancelStatus.textContent = result.cancelled
+      ? 'Batch akan dihentikan setelah NIM saat ini selesai.'
+      : 'Batch sudah selesai.';
   } catch (error) {
     cancelBtn.disabled = false;
-    document.getElementById('cancelStatus').textContent = error.message;
+    cancelStatus.textContent = error.message;
   }
 });
 </script>

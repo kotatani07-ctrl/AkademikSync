@@ -204,70 +204,62 @@
 
   <!-- Offcanvas header (only shown on mobile via CSS) -->
   <div class="offcanvas-header" style="display:none;">
-    <span class="sidebar-brand" style="padding:0;border:none;">
-      <h5 id="sidebarLabel" class="mb-0"><i class="bi bi-mortarboard-fill me-2"></i>AkademikSync</h5>
-      <small>Sistem Otomasi PDDIKTI</small>
-    </span>
+    <a href="{% url 'dashboard' %}" class="sidebar-brand text-decoration-none" style="padding:0;border:none;">
+      <h5 id="sidebarLabel" class="mb-0 text-white"><i class="bi bi-mortarboard-fill me-2"></i>AkademikSync</h5>
+      <small class="text-white-50">Sistem Otomasi PDDIKTI</small>
+    </a>
     <button type="button" class="btn-close ms-auto" data-bs-dismiss="offcanvas" aria-label="Tutup"></button>
   </div>
 
   <!-- Brand (desktop) -->
   <div class="sidebar-brand d-none d-lg-block">
-    <h5><i class="bi bi-mortarboard-fill me-2"></i>AkademikSync</h5>
-    <small>Sistem Otomasi PDDIKTI</small>
+    <a href="{% url 'dashboard' %}" class="text-decoration-none d-block">
+      <h5 class="text-white mb-0"><i class="bi bi-mortarboard-fill me-2"></i>AkademikSync</h5>
+      <small class="text-white-50">Sistem Otomasi PDDIKTI</small>
+    </a>
   </div>
 
   <nav class="sidebar-nav">
     <div class="nav-section">Menu Utama</div>
-    <a href="{% url 'dashboard' %}" class="sidebar-link {% if request.resolver_match.url_name == 'dashboard' and request.resolver_match.app_name != 'dashboard' %}active{% endif %}"
-       data-bs-dismiss="offcanvas">
+    <a href="{% url 'dashboard' %}" class="sidebar-link {% if request.resolver_match.url_name == 'dashboard' and request.resolver_match.app_name != 'dashboard' %}active{% endif %}">
       <i class="bi bi-grid-1x2"></i> Dashboard
     </a>
 
     <div class="nav-section mt-2">eCampuz</div>
-    <a href="{% url 'dashboard:dashboard' %}" class="sidebar-link {% if request.resolver_match.app_name == 'dashboard' and request.resolver_match.url_name == 'dashboard' %}active{% endif %}"
-       data-bs-dismiss="offcanvas">
+    <a href="{% url 'dashboard:dashboard' %}" class="sidebar-link {% if request.resolver_match.app_name == 'dashboard' and request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
       <i class="bi bi-binoculars"></i> Dashboard eCampuz
     </a>
-    <a href="{% url 'dashboard:scrape' %}" class="sidebar-link {% if request.resolver_match.url_name == 'scrape' %}active{% endif %}"
-       data-bs-dismiss="offcanvas">
+    <a href="{% url 'dashboard:scrape' %}" class="sidebar-link {% if request.resolver_match.url_name == 'scrape' %}active{% endif %}">
       <i class="bi bi-cloud-download"></i> Penarikan Nilai &amp; Data
     </a>
-    <a href="{% url 'dashboard:daftar_mahasiswa' %}" class="sidebar-link {% if request.resolver_match.url_name == 'daftar_mahasiswa' or request.resolver_match.url_name == 'detail_mahasiswa' %}active{% endif %}"
-       data-bs-dismiss="offcanvas">
+    <a href="{% url 'dashboard:daftar_mahasiswa' %}" class="sidebar-link {% if request.resolver_match.url_name == 'daftar_mahasiswa' or request.resolver_match.url_name == 'detail_mahasiswa' %}active{% endif %}">
       <i class="bi bi-people-fill"></i> Daftar Mahasiswa
     </a>
-    <a href="{% url 'dashboard:pemetaan' %}" class="sidebar-link {% if request.resolver_match.url_name == 'pemetaan' %}active{% endif %}"
-       data-bs-dismiss="offcanvas">
+    <a href="{% url 'dashboard:pemetaan' %}" class="sidebar-link {% if request.resolver_match.url_name == 'pemetaan' %}active{% endif %}">
       <i class="bi bi-diagram-3"></i> Pemetaan MK
     </a>
-    <a href="{% url 'dashboard:yudisium_page' %}" class="sidebar-link {% if request.resolver_match.url_name == 'yudisium_page' %}active{% endif %}"
-       data-bs-dismiss="offcanvas">
+    <a href="{% url 'dashboard:yudisium_page' %}" class="sidebar-link {% if request.resolver_match.url_name == 'yudisium_page' %}active{% endif %}">
       <i class="bi bi-award"></i> Yudisium (Bulk)
     </a>
-    <a href="{% url 'dashboard:login_page' %}" class="sidebar-link {% if request.resolver_match.url_name == 'login_page' %}active{% endif %}"
-       data-bs-dismiss="offcanvas">
+    <a href="{% url 'dashboard:login_page' %}" class="sidebar-link {% if request.resolver_match.url_name == 'login_page' %}active{% endif %}">
       <i class="bi bi-key"></i> Login eCampuz
     </a>
 
     <div class="nav-section mt-2">Generate</div>
-    <a href="{% url 'generate_single' %}" class="sidebar-link {% if request.resolver_match.url_name == 'generate_single' %}active{% endif %}"
-       data-bs-dismiss="offcanvas">
+    <a href="{% url 'generate_single' %}" class="sidebar-link {% if request.resolver_match.url_name == 'generate_single' %}active{% endif %}">
       <i class="bi bi-person-vcard"></i> Generate Single
     </a>
-    <a href="{% url 'generate_batch' %}" class="sidebar-link {% if request.resolver_match.url_name == 'generate_batch' %}active{% endif %}"
-       data-bs-dismiss="offcanvas">
+    <a href="{% url 'generate_batch' %}" class="sidebar-link {% if request.resolver_match.url_name == 'generate_batch' %}active{% endif %}">
       <i class="bi bi-people"></i> Generate Batch
     </a>
 
     <div class="nav-section mt-2">Laporan</div>
-    <a href="{% url 'riwayat' %}" class="sidebar-link {% if request.resolver_match.url_name == 'riwayat' %}active{% endif %}"
-       data-bs-dismiss="offcanvas">
+    <a href="{% url 'riwayat' %}" class="sidebar-link {% if request.resolver_match.url_name == 'riwayat' %}active{% endif %}">
       <i class="bi bi-clock-history"></i> Riwayat Generate
     </a>
 
     <div class="nav-section mt-2">Administrasi</div>
-    <a href="/admin/" class="sidebar-link" target="_blank">
+    <a href="/admin/" class="sidebar-link">
       <i class="bi bi-gear"></i> Admin Panel
     </a>
   </nav>

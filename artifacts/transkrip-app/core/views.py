@@ -4,14 +4,19 @@ Semua view memerlukan login (login_required).
 """
 import io
 import logging
+import re
+import threading
+from threading import Lock
 import time
 import uuid
+import zipfile
 from datetime import date
 from pathlib import Path
 
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect
+from django.urls import reverse
 from django.contrib import messages
 from django.conf import settings
 from django.utils import timezone
@@ -239,19 +244,23 @@ def generate_single(request):
         form = GenerateSingleForm(request.POST)
         if form.is_valid():
             nim = form.cleaned_data['nim'].strip()
+            if request.POST.get('action') == 'preview':
+                from urllib.parse import urlencode
+                prodi = form.cleaned_data.get('prodi', '')
+                params = urlencode({'nim': nim, 'prodi': prodi})
+                return redirect(f"{reverse('preview_single')}?{params}")
+
             try:
                 hasil, data_pendukung, template = _proses_satu_nim(
                     nim, 'single', request.user, form.cleaned_data['prodi']
                 )
 
-                # Generate Excel
+                format_output = form.cleaned_data.get('format_output', 'xlsx')
                 template_path = template.file_excel.path
                 if template.cell_mapping.get('engine') == 'workbook':
-                    # Template formula-driven (workbook kampus): set selector
-                    # NIM dan biarkan formula Excel mengisi transkrip.
                     from dashboard.services.transcript_export import build_transcript_export
                     excel_bytes = build_transcript_export(
-                        Path(template_path), nim
+                        Path(template_path), nim, hasil=hasil, data_pendukung=data_pendukung
                     ).content
                 else:
                     excel_bytes = generate_single_excel(
@@ -262,11 +271,20 @@ def generate_single(request):
                         default_nama_dekan=getattr(settings, 'DEFAULT_NAMA_DEKAN', ''),
                     )
 
-                filename = f"Transkrip_{nim}_{hasil.nama.replace(' ', '_')}.xlsx"
-                response = HttpResponse(
-                    excel_bytes,
-                    content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-                )
+                safe_nama = (hasil.nama or '').replace(' ', '_')
+                safe_nama = re.sub(r'[^A-Za-z0-9_]', '', safe_nama) or 'Mhs'
+
+                if format_output == 'pdf':
+                    from dashboard.services.transcript_export import convert_excel_to_pdf
+                    file_bytes = convert_excel_to_pdf(excel_bytes, f"Transkrip_{nim}")
+                    filename = f"Transkrip_{nim}_{safe_nama}.pdf"
+                    content_type = 'application/pdf'
+                else:
+                    file_bytes = excel_bytes
+                    filename = f"Transkrip_{nim}_{safe_nama}.xlsx"
+                    content_type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+
+                response = HttpResponse(file_bytes, content_type=content_type)
                 response['Content-Disposition'] = f'attachment; filename="{filename}"'
                 return response
 
@@ -290,6 +308,204 @@ def generate_single(request):
 
 
 @login_required
+def preview_single(request):
+    """Halaman pratinjau transkrip interaktif 2 halaman sebelum mengunduh berkas."""
+    nim = (request.GET.get('nim') or request.POST.get('nim') or '').strip()
+    prodi = (request.GET.get('prodi') or request.POST.get('prodi') or '').strip()
+
+    if not nim:
+        messages.warning(request, "Silakan masukkan NIM mahasiswa untuk melihat pratinjau transkrip.")
+        return redirect('generate_single')
+
+    try:
+        hasil, data_pendukung, template = _proses_satu_nim(nim, 'single', request.user, prodi)
+    except Exception as e:
+        logger.exception(f"Error preview single NIM {nim}: {e}")
+        messages.error(request, f"Gagal memuat pratinjau transkrip NIM {nim}: {e}")
+        return redirect('generate_single')
+
+    # Bagi mata kuliah menjadi 2 bagian untuk representasi 2 halaman resmi
+    total_mk = len(hasil.daftar_mk)
+    split_idx = (total_mk + 1) // 2
+    halaman_1 = hasil.daftar_mk[:split_idx]
+    halaman_2 = hasil.daftar_mk[split_idx:]
+
+    # Hitung statistik untuk badge status
+    mk_lulus_count = sum(1 for m in hasil.daftar_mk if not m.is_kosong and not m.is_tidak_lulus)
+
+    context = {
+        'hasil': hasil,
+        'data_pendukung': data_pendukung,
+        'template': template,
+        'prodi': prodi,
+        'halaman_1': halaman_1,
+        'halaman_2': halaman_2,
+        'total_mk': total_mk,
+        'mk_lulus_count': mk_lulus_count,
+        'dekan_nama': getattr(settings, 'DEFAULT_NAMA_DEKAN', 'Dekan Fakultas'),
+    }
+    return render(request, 'preview_single.html', context)
+
+
+
+BATCH_JOBS_LOCK = Lock()
+BATCH_JOBS_CACHE = {}
+
+
+def _execute_batch_job(batch_id, user, daftar_nim, prodi, format_output):
+    """Menjalankan pemrosesan batch per NIM (bisa dipanggil sinkron atau di background thread)."""
+    daftar_hasil_excel = []
+    hasil_batch = []
+
+    with BATCH_JOBS_LOCK:
+        job = BATCH_JOBS_CACHE.get(batch_id)
+
+    for nim in daftar_nim:
+        # Cek pembatalan kooperatif
+        if BatchJob.objects.filter(pk=batch_id, status=BatchJob.STATUS_CANCELLED).exists():
+            break
+
+        if job:
+            with BATCH_JOBS_LOCK:
+                job['current_nim'] = nim
+
+        try:
+            hasil, data_pendukung, template = _proses_satu_nim(nim, 'batch', user, prodi)
+            daftar_hasil_excel.append((
+                hasil, data_pendukung,
+                template.file_excel.path,
+                template.cell_mapping,
+            ))
+            item = {
+                'nim': nim,
+                'nama': hasil.nama,
+                'status': 'success',
+                'mk_kosong': hasil.jumlah_mk_kosong,
+                'mk_retake': hasil.jumlah_mk_retake,
+                'mk_tidak_dikenali': hasil.jumlah_mk_tidak_dikenali,
+                'sumber_nilai': hasil.sumber_nilai,
+                'ipk': str(hasil.ipk),
+            }
+            hasil_batch.append(item)
+            if job:
+                with BATCH_JOBS_LOCK:
+                    job['success_count'] += 1
+                    job['results'].append(item)
+        except Exception as e:
+            logger.exception(f"Error batch NIM {nim}: {e}")
+            try:
+                RiwayatGenerate.objects.create(
+                    nim=nim,
+                    mode='batch',
+                    status='error',
+                    error_message=str(e),
+                    generated_by=user,
+                )
+            except Exception:
+                pass
+            item = {
+                'nim': nim,
+                'nama': '-',
+                'status': 'error',
+                'error': str(e),
+            }
+            hasil_batch.append(item)
+            if job:
+                with BATCH_JOBS_LOCK:
+                    job['error_count'] += 1
+                    job['results'].append(item)
+
+        if job:
+            with BATCH_JOBS_LOCK:
+                job['processed'] += 1
+                job['percent'] = int((job['processed'] / job['total']) * 100) if job['total'] else 0
+
+        # Jeda kecil antar NIM agar tidak membebani Feeder
+        time.sleep(0.3)
+
+    dibatalkan = BatchJob.objects.filter(pk=batch_id, status=BatchJob.STATUS_CANCELLED).exists()
+    final_status = BatchJob.STATUS_CANCELLED if dibatalkan else BatchJob.STATUS_COMPLETED
+    BatchJob.objects.filter(pk=batch_id).update(status=final_status)
+
+    file_bytes = None
+    filename = None
+    content_type = None
+
+    if daftar_hasil_excel:
+        try:
+            rekap_excel_bytes = generate_batch_excel(
+                daftar_hasil=daftar_hasil_excel,
+                default_nama_dekan=getattr(settings, 'DEFAULT_NAMA_DEKAN', ''),
+            )
+
+            if format_output in ('zip_xlsx', 'zip_pdf'):
+                from dashboard.services.transcript_export import build_transcript_export, convert_excel_to_pdf
+                zip_buffer = io.BytesIO()
+                with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                    zip_file.writestr(
+                        f"00_Rekapitulasi_Batch_{date.today().strftime('%Y%m%d')}.xlsx",
+                        rekap_excel_bytes
+                    )
+                    for hasil_item, data_pendukung_item, template_path, cm in daftar_hasil_excel:
+                        safe_nama = (hasil_item.nama or '').replace(' ', '_')
+                        safe_nama = re.sub(r'[^A-Za-z0-9_]', '', safe_nama) or 'Mhs'
+                        if cm and cm.get('engine') == 'workbook':
+                            mhs_bytes = build_transcript_export(
+                                Path(template_path), hasil_item.nim, hasil=hasil_item, data_pendukung=data_pendukung_item
+                            ).content
+                        else:
+                            mhs_bytes = generate_single_excel(
+                                hasil=hasil_item,
+                                template_file_path=template_path,
+                                cell_mapping=cm or {},
+                                data_pendukung=data_pendukung_item,
+                                default_nama_dekan=getattr(settings, 'DEFAULT_NAMA_DEKAN', ''),
+                            )
+
+                        if format_output == 'zip_pdf':
+                            try:
+                                mhs_bytes = convert_excel_to_pdf(mhs_bytes, f"Transkrip_{hasil_item.nim}")
+                                ext = "pdf"
+                            except Exception as pdf_err:
+                                logger.warning(f"Gagal konversi PDF {hasil_item.nim}: {pdf_err}")
+                                ext = "xlsx"
+                        else:
+                            ext = "xlsx"
+
+                        zip_file.writestr(f"Transkrip_{hasil_item.nim}_{safe_nama}.{ext}", mhs_bytes)
+
+                file_bytes = zip_buffer.getvalue()
+                filename = f"Transkrip_Batch_{date.today().strftime('%Y%m%d')}.zip"
+                content_type = 'application/zip'
+            else:
+                file_bytes = rekap_excel_bytes
+                filename = f"Transkrip_Batch_{date.today().strftime('%Y%m%d')}.xlsx"
+                content_type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+
+            if job:
+                with BATCH_JOBS_LOCK:
+                    job['download_ready'] = True
+                    job['file_bytes'] = file_bytes
+                    job['filename'] = filename
+                    job['content_type'] = content_type
+                    job['status'] = final_status
+
+        except Exception as e:
+            logger.exception(f"Error packaging batch: {e}")
+            if job:
+                with BATCH_JOBS_LOCK:
+                    job['status'] = 'error'
+                    job['error_message'] = str(e)
+    else:
+        if job:
+            with BATCH_JOBS_LOCK:
+                job['status'] = 'cancelled' if dibatalkan else 'error'
+                job['error_message'] = "Tidak ada hasil yang berhasil diproses."
+
+    return hasil_batch, file_bytes, filename, content_type, dibatalkan
+
+
+@login_required
 def generate_batch(request):
     """Generate transkrip batch dari file daftar NIM."""
     form = GenerateBatchForm()
@@ -304,9 +520,7 @@ def generate_batch(request):
             except ValueError:
                 messages.error(request, "ID proses batch tidak valid. Silakan coba lagi.")
                 return render(request, 'generate_batch.html', {
-                    'form': form,
-                    'hasil_batch': [],
-                    'batch_id': uuid.uuid4(),
+                    'form': form, 'hasil_batch': [], 'batch_id': uuid.uuid4(),
                 })
 
             f = request.FILES['file_nim']
@@ -341,90 +555,116 @@ def generate_batch(request):
                     'form': form, 'hasil_batch': [], 'batch_id': uuid.uuid4(),
                 })
 
-            daftar_hasil_excel = []  # untuk generate_batch_excel
-            for nim in daftar_nim:
-                if BatchJob.objects.filter(
-                    pk=batch_id, status=BatchJob.STATUS_CANCELLED
-                ).exists():
-                    break
+            format_output = form.cleaned_data.get('format_output', 'zip_xlsx')
+            prodi = form.cleaned_data.get('prodi', '')
 
-                try:
-                    hasil, data_pendukung, template = _proses_satu_nim(
-                        nim, 'batch', request.user, form.cleaned_data['prodi']
-                    )
-                    daftar_hasil_excel.append((
-                        hasil, data_pendukung,
-                        template.file_excel.path,
-                        template.cell_mapping,
-                    ))
-                    hasil_batch.append({
-                        'nim': nim,
-                        'nama': hasil.nama,
-                        'status': 'success',
-                        'mk_kosong': hasil.jumlah_mk_kosong,
-                        'mk_retake': hasil.jumlah_mk_retake,
-                        'mk_tidak_dikenali': hasil.jumlah_mk_tidak_dikenali,
-                        'sumber_nilai': hasil.sumber_nilai,
-                        'ipk': str(hasil.ipk),
-                    })
-                except Exception as e:
-                    logger.exception(f"Error batch NIM {nim}: {e}")
-                    try:
-                        RiwayatGenerate.objects.create(
-                            nim=nim,
-                            mode='batch',
-                            status='error',
-                            error_message=str(e),
-                            generated_by=request.user,
-                        )
-                    except Exception:
-                        pass
-                    hasil_batch.append({
-                        'nim': nim,
-                        'nama': '-',
-                        'status': 'error',
-                        'error': str(e),
-                    })
+            # Inisialisasi job cache
+            with BATCH_JOBS_LOCK:
+                BATCH_JOBS_CACHE[batch_id] = {
+                    'status': 'running',
+                    'total': len(daftar_nim),
+                    'processed': 0,
+                    'percent': 0,
+                    'current_nim': '',
+                    'success_count': 0,
+                    'error_count': 0,
+                    'results': [],
+                    'download_ready': False,
+                    'file_bytes': None,
+                    'filename': None,
+                    'content_type': None,
+                    'error_message': None,
+                }
 
-                # Jeda kecil antar NIM agar tidak membebani Feeder
-                time.sleep(0.3)
+            # Cek apakah request meminta eksekusi asinkron (UI browser)
+            is_async = (
+                request.POST.get('is_async') == '1'
+                or request.headers.get('x-requested-with') == 'XMLHttpRequest'
+                or 'application/json' in request.headers.get('accept', '')
+            )
 
-            dibatalkan = BatchJob.objects.filter(
-                pk=batch_id, status=BatchJob.STATUS_CANCELLED
-            ).exists()
-            BatchJob.objects.filter(
-                pk=batch_id, status=BatchJob.STATUS_RUNNING
-            ).update(status=BatchJob.STATUS_COMPLETED)
+            if is_async:
+                thread = threading.Thread(
+                    target=_execute_batch_job,
+                    args=(batch_id, request.user, daftar_nim, prodi, format_output),
+                    daemon=True,
+                )
+                thread.start()
+                return JsonResponse({'ok': True, 'batch_id': str(batch_id), 'total': len(daftar_nim)})
+
+            # Eksekusi sinkron (fallback non-JS atau pengujian otomatis)
+            hasil_batch, file_bytes, filename, content_type, dibatalkan = _execute_batch_job(
+                batch_id, request.user, daftar_nim, prodi, format_output
+            )
             if dibatalkan:
                 messages.warning(
                     request,
                     "Batch dibatalkan. NIM yang sudah selesai tetap disertakan dalam hasil.",
                 )
 
-            if daftar_hasil_excel:
-                try:
-                    excel_bytes = generate_batch_excel(
-                        daftar_hasil=daftar_hasil_excel,
-                        default_nama_dekan=getattr(settings, 'DEFAULT_NAMA_DEKAN', ''),
-                    )
-                    berhasil = sum(1 for h in hasil_batch if h['status'] == 'success')
-                    gagal = len(hasil_batch) - berhasil
-                    filename = f"Transkrip_Batch_{date.today().strftime('%Y%m%d')}.xlsx"
-                    response = HttpResponse(
-                        excel_bytes,
-                        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-                    )
-                    response['Content-Disposition'] = f'attachment; filename="{filename}"'
-                    return response
-                except Exception as e:
-                    logger.exception(f"Error generate batch Excel: {e}")
-                    messages.error(request, f"Gagal membuat file Excel: {e}")
+            if file_bytes and filename:
+                response = HttpResponse(file_bytes, content_type=content_type)
+                response['Content-Disposition'] = f'attachment; filename="{filename}"'
+                return response
             elif not dibatalkan:
                 messages.error(request, "Semua NIM gagal diproses. Cek log untuk detail.")
 
     return render(request, 'generate_batch.html', {
         'form': form, 'hasil_batch': hasil_batch, 'batch_id': uuid.uuid4(),
     })
+
+
+@login_required
+def batch_status(request, batch_id):
+    """API endpoint untuk polling status background batch job."""
+    with BATCH_JOBS_LOCK:
+        job = BATCH_JOBS_CACHE.get(batch_id)
+
+    if not job:
+        batch = BatchJob.objects.filter(pk=batch_id, requested_by=request.user).first()
+        if not batch:
+            return JsonResponse({'error': 'Proses batch tidak ditemukan.'}, status=404)
+        return JsonResponse({
+            'status': batch.status,
+            'total': 0,
+            'processed': 0,
+            'percent': 100 if batch.status == BatchJob.STATUS_COMPLETED else 0,
+            'current_nim': '',
+            'success_count': 0,
+            'error_count': 0,
+            'results': [],
+            'download_ready': False,
+            'error_message': None,
+        })
+
+    return JsonResponse({
+        'status': job['status'],
+        'total': job['total'],
+        'processed': job['processed'],
+        'percent': job['percent'],
+        'current_nim': job['current_nim'],
+        'success_count': job['success_count'],
+        'error_count': job['error_count'],
+        'results': job['results'],
+        'download_ready': job['download_ready'],
+        'error_message': job['error_message'],
+    })
+
+
+@login_required
+def batch_download(request, batch_id):
+    """Download hasil batch yang sudah selesai diproses."""
+    with BATCH_JOBS_LOCK:
+        job = BATCH_JOBS_CACHE.get(batch_id)
+        if not job or not job.get('download_ready') or not job.get('file_bytes'):
+            return HttpResponse("Berkas hasil batch belum siap atau sudah kedaluwarsa.", status=404)
+        file_bytes = job['file_bytes']
+        filename = job['filename']
+        content_type = job['content_type']
+
+    response = HttpResponse(file_bytes, content_type=content_type)
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
 
 
 @login_required
@@ -439,6 +679,10 @@ def cancel_generate_batch(request, batch_id):
         pk=batch_id, status=BatchJob.STATUS_RUNNING
     ).update(status=BatchJob.STATUS_CANCELLED)
     batch.refresh_from_db()
+    with BATCH_JOBS_LOCK:
+        if batch_id in BATCH_JOBS_CACHE:
+            BATCH_JOBS_CACHE[batch_id]['status'] = 'cancelled'
+
     return JsonResponse({
         'cancelled': batch.status == BatchJob.STATUS_CANCELLED,
         'status': batch.status,

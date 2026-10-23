@@ -150,7 +150,69 @@ def nim_transcript(nim: str) -> dict | None:
 
 
 def mapping_rows() -> list[dict]:
-    return _read_csv(DATA_DIR / "mapping_draft.csv")
+    raw = _read_csv(DATA_DIR / "mapping_draft.csv")
+    if not raw:
+        return []
+
+    # Lookup nama mata kuliah kurikulum dari database untuk melengkapi nama template yang kosong
+    db_mks: dict[str, str] = {}
+    try:
+        from core.models import MataKuliahKurikulum
+        db_mks = {
+            m.kode_mk.strip().upper(): m.nama_mk.strip()
+            for m in MataKuliahKurikulum.objects.all()
+        }
+    except Exception:
+        db_mks = {}
+
+    out = []
+    for r in raw:
+        kode_dhs = (r.get("eA_kode") or r.get("kode_dhs") or "").strip()
+        nama_dhs = (r.get("eA_nama") or r.get("nama_dhs") or "").strip()
+        sks = (r.get("eA_sks") or r.get("sks") or "").strip()
+        n_nim = (r.get("n_nim") or r.get("jumlah_mhs") or "").strip()
+        kode_tpl = (r.get("P24_kode") or r.get("kode_template") or "").strip()
+        nama_tpl = (r.get("P24_nama") or r.get("nama_template") or "").strip()
+        status = (r.get("status") or "").strip().upper()
+        kandidat = (r.get("kandidat") or r.get("rekomendasi") or "").strip()
+
+        # Jika nama template kosong di CSV (misal pada baris APPROVED-REC), ambil dari DB master kurikulum
+        if not nama_tpl and kode_tpl:
+            nama_tpl = db_mks.get(kode_tpl.upper(), "")
+
+        # Buat keterangan kesimpulan / catatan rekomendasi
+        if kandidat:
+            kandidat_nama = db_mks.get(kandidat.upper(), "")
+            rekomendasi = f"{kandidat} ({kandidat_nama})" if kandidat_nama else kandidat
+        elif status == "APPROVED-EXACT":
+            rekomendasi = "Nama cocok persis"
+        elif status == "APPROVED-REC":
+            rekomendasi = f"Dipetakan ke {kode_tpl}" if kode_tpl else "Rekomendasi padanan"
+        elif status == "SKIP":
+            rekomendasi = "Dilewati (tidak ada padanan langsung / ambigu)"
+        else:
+            rekomendasi = "-"
+
+        out.append({
+            # Key normalized untuk kemudahan rendering template
+            "kode_dhs": kode_dhs,
+            "nama_dhs": nama_dhs,
+            "sks_dhs": sks,
+            "n_nim": n_nim,
+            "kode_template": kode_tpl,
+            "nama_template": nama_tpl,
+            "rekomendasi": rekomendasi,
+            "status": status,
+            # Backward-compatibility alias
+            "eA_kode": kode_dhs,
+            "eA_nama": nama_dhs,
+            "eA_sks": sks,
+            "P24_kode": kode_tpl,
+            "P24_nama": nama_tpl,
+            "kandidat": kandidat,
+            "kolom": sks,
+        })
+    return out
 
 
 def checkpoint(angkatan: str) -> dict:

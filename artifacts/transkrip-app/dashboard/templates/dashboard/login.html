@@ -18,14 +18,14 @@
       <form class="webform" id="login-form">
         <div>
           <label>Username eAkademik</label>
-          <input type="text" name="username" id="login-username" autocomplete="username">
+          <input type="text" name="username" id="login-username" value="{{ default_username }}" autocomplete="username">
         </div>
         <div>
           <label>Password</label>
           <input type="password" name="password" id="login-password" autocomplete="current-password">
         </div>
         <div>
-          <button type="button" id="btn-captcha" onclick="requestCaptcha()">1 &middot; Ambil soal captcha</button>
+          <button type="submit" id="btn-captcha">1 &middot; Ambil soal captcha</button>
         </div>
       </form>
 
@@ -148,6 +148,7 @@ function requestCaptcha() {
 
 function submitLogin(event) {
   event.preventDefault();
+  readCreds();
   if (!state.loginId) { out('Ambil soal captcha dulu.', 'bad'); return; }
   var answer = document.getElementById('captcha-answer').value;
   var btn = document.getElementById('btn-login');
@@ -156,7 +157,12 @@ function submitLogin(event) {
   fetch('{% url "dashboard:api_login_submit" %}', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ login_id: state.loginId, answer: answer })
+    body: JSON.stringify({
+      login_id: state.loginId,
+      answer: answer,
+      username: state.username,
+      password: state.password
+    })
   })
     .then(function (r) { return r.json(); })
     .then(function (j) {
@@ -210,6 +216,10 @@ function clearSession() {
     .catch(function () { out('Error menghapus sesi.', 'bad'); });
 }
 
+document.getElementById('login-form').addEventListener('submit', function (event) {
+  event.preventDefault();
+  requestCaptcha();
+});
 document.getElementById('answer-form').addEventListener('submit', submitLogin);
 checkSession();
 </script>

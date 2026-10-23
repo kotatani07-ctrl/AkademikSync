@@ -23,17 +23,27 @@
             {{ form.prodi }}
             {% if form.prodi.errors %}<div class="text-danger small mt-1">{{ form.prodi.errors }}</div>{% endif %}
           </div>
-          <div class="mb-4">
+          <div class="mb-3">
             <label class="form-label">{{ form.nim.label }}</label>
             {{ form.nim }}
             {% if form.nim.errors %}
             <div class="text-danger small mt-1">{{ form.nim.errors }}</div>
             {% endif %}
           </div>
+          <div class="mb-4">
+            <label class="form-label" for="{{ form.format_output.id_for_label }}">{{ form.format_output.label }}</label>
+            {{ form.format_output }}
+            {% if form.format_output.errors %}<div class="text-danger small mt-1">{{ form.format_output.errors }}</div>{% endif %}
+          </div>
 
-          <button type="submit" class="btn btn-primary w-100" id="submitBtn">
-            <i class="bi bi-download me-2"></i>Generate & Unduh Excel
-          </button>
+          <div class="d-flex flex-column gap-2 mb-2">
+            <button type="submit" name="action" value="preview" class="btn btn-outline-primary w-100 py-2 fw-semibold" id="previewBtn">
+              <i class="bi bi-eye me-2"></i>Pratinjau di Layar (Web Preview)
+            </button>
+            <button type="submit" name="action" value="download" class="btn btn-primary w-100 py-2 fw-semibold" id="submitBtn">
+              <i class="bi bi-download me-2"></i>Generate &amp; Unduh Transkrip
+            </button>
+          </div>
         </form>
 
         <div id="loadingIndicator" class="text-center py-4 d-none">
@@ -74,7 +84,7 @@
       </div>
       <div class="card-body py-3">
         <ol class="small text-muted mb-0 ps-3">
-          <li>Kurikulum (Jenjang + Angkatan) mahasiswa sudah diinput di <a href="/admin/core/kurikulum/" target="_blank">Admin → Kurikulum</a></li>
+          <li>Kurikulum (Jenjang + Angkatan) mahasiswa sudah diinput di <a href="/admin/core/kurikulum/">Admin → Kurikulum</a></li>
           <li>Template Excel sudah diupload dan dikonfigurasi <code>cell_mapping</code>-nya</li>
           <li>Data Pendukung (No. Ijazah, Judul Skripsi) mahasiswa tersedia opsional</li>
           <li>Koneksi ke Neo Feeder aktif</li>
@@ -87,8 +97,17 @@
 
 {% block extra_js %}
 <script>
-document.getElementById('generateForm').addEventListener('submit', function() {
-  document.getElementById('submitBtn').classList.add('d-none');
+document.getElementById('generateForm').addEventListener('submit', function(e) {
+  var submitter = e.submitter;
+  var isPreview = submitter && submitter.value === 'preview';
+  var msgEl = document.querySelector('#loadingIndicator p.text-muted');
+  if (msgEl) {
+    msgEl.textContent = isPreview
+      ? 'Mengambil data dari Neo Feeder & menyiapkan pratinjau...'
+      : 'Mengambil data dari Neo Feeder & memproses berkas...';
+  }
+  document.getElementById('previewBtn').classList.add('disabled');
+  document.getElementById('submitBtn').classList.add('disabled');
   document.getElementById('loadingIndicator').classList.remove('d-none');
 });
 </script>

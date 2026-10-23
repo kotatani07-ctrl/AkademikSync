@@ -4,49 +4,109 @@
 <div class="page-head">
   <div>
     <h1>Pemetaan Mata Kuliah</h1>
-    <div class="sub">Kode MK template (P24xxx) &ne; kode eAkademik (FKS/PE/P21) &rarr; dicocokkan via nama. {{ mapping|length }} baris di <span class="mono">data/ecampuz/mapping_draft.csv</span>.</div>
+    <div class="sub">Penyelarasan kode mata kuliah eAkademik / DHS (FKS, PE, P21) dengan master template kurikulum (P24xxx). Total <strong>{{ counts.total }}</strong> mata kuliah terdata.</div>
   </div>
 </div>
 
-<div class="filter-row">
-  <a class="btn ghost {% if group == 'all' %}active{% endif %}" href="{% url 'dashboard:pemetaan' %}?kelompok=all">Semua</a>
-  <a class="btn ghost {% if group == 'APPROVED-EXACT' %}active{% endif %}" href="{% url 'dashboard:pemetaan' %}?kelompok=APPROVED-EXACT">Exact</a>
-  <a class="btn ghost {% if group == 'APPROVED-REC' %}active{% endif %}" href="{% url 'dashboard:pemetaan' %}?kelompok=APPROVED-REC">Rekomendasi</a>
-  <a class="btn ghost {% if group == 'SKIP' %}active{% endif %}" href="{% url 'dashboard:pemetaan' %}?kelompok=SKIP">Skip (ambigu)</a>
+<div class="cards" style="margin-bottom: 20px;">
+  <div class="card">
+    <div class="label">Total MK DHS</div>
+    <div class="num">{{ counts.total }}</div>
+    <div class="sub">Mata kuliah dari eCampuz</div>
+  </div>
+  <div class="card">
+    <div class="label">Cocok Persis (Exact)</div>
+    <div class="num" style="color: var(--ok);">{{ counts.exact }}</div>
+    <div class="sub">Nama MK sama persis</div>
+  </div>
+  <div class="card">
+    <div class="label">Rekomendasi Padanan</div>
+    <div class="num" style="color: var(--brand-2);">{{ counts.rec }}</div>
+    <div class="sub">Dipetakan ke kurikulum baru</div>
+  </div>
+  <div class="card">
+    <div class="label">Dilewati (Skip)</div>
+    <div class="num" style="color: var(--muted);">{{ counts.skip }}</div>
+    <div class="sub">Ambigu / di luar kurikulum</div>
+  </div>
+</div>
+
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+  <div class="filter-row" style="margin: 0;">
+    <a class="btn ghost {% if group == 'all' %}active{% endif %}" href="{% url 'dashboard:pemetaan' %}?kelompok=all">Semua ({{ counts.total }})</a>
+    <a class="btn ghost {% if group == 'APPROVED-EXACT' %}active{% endif %}" href="{% url 'dashboard:pemetaan' %}?kelompok=APPROVED-EXACT">Exact ({{ counts.exact }})</a>
+    <a class="btn ghost {% if group == 'APPROVED-REC' %}active{% endif %}" href="{% url 'dashboard:pemetaan' %}?kelompok=APPROVED-REC">Rekomendasi ({{ counts.rec }})</a>
+    <a class="btn ghost {% if group == 'SKIP' %}active{% endif %}" href="{% url 'dashboard:pemetaan' %}?kelompok=SKIP">Skip ({{ counts.skip }})</a>
+  </div>
+  <div>
+    <input type="text" id="pemetaanSearch" placeholder="Cari kode atau nama MK..." style="padding: 7px 14px; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; width: 280px; outline: none; background: #fff;" />
+  </div>
 </div>
 
 <div class="panel">
   <div class="p-body" style="padding:0">
-    <table class="tbl">
-      <tr>
-        <th>Kolom</th><th>Kode template</th><th>Nama di template</th><th>Kode eAkademik</th><th>Nama di DHS</th><th>Kesimpulan</th><th>Status</th>
-      </tr>
-      {% for m in mapping %}
-      <tr>
-        <td class="mono">{{ m.kolom|default:'' }}</td>
-        <td class="mono">{{ m.kode_template|default:'' }}</td>
-        <td>{{ m.nama_template|default:'' }}</td>
-        <td class="mono">{{ m.kode_dhs|default:'' }}</td>
-        <td>{{ m.nama_dhs|default:'' }}</td>
-        <td>{{ m.rekomendasi|default:'' }}</td>
-        <td>
-          {% if m.status == 'APPROVED-EXACT' %}<span class="badge exact">EXACT</span>
-          {% elif m.status == 'APPROVED-REC' %}<span class="badge rec">REC</span>
-          {% elif m.status == 'SKIP' %}<span class="badge skip">SKIP</span>
-          {% else %}<span class="badge gray">{{ m.status|default:'-' }}</span>{% endif %}
-        </td>
-      </tr>
-      {% empty %}
-      <tr><td colspan="7" class="empty-col">Data pemetaan kosong atau filter tidak cocok.</td></tr>
-      {% endfor %}
+    <table class="tbl" id="pemetaanTable">
+      <thead>
+        <tr>
+          <th style="width: 45px; text-align: center;">No</th>
+          <th style="width: 120px;">Kode eAkademik</th>
+          <th>Nama Mata Kuliah (DHS)</th>
+          <th style="width: 55px; text-align: center;">SKS</th>
+          <th style="width: 75px; text-align: center;">Jml Mhs</th>
+          <th style="width: 120px;">Kode Template</th>
+          <th>Nama di Template Kurikulum</th>
+          <th>Kesimpulan / Padanan</th>
+          <th style="width: 100px; text-align: center;">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in mapping %}
+        <tr class="mapping-row">
+          <td style="text-align: center; color: var(--muted);">{{ forloop.counter }}</td>
+          <td class="mono" style="font-weight: 600;">{{ m.kode_dhs }}</td>
+          <td>{{ m.nama_dhs }}</td>
+          <td style="text-align: center;">{{ m.sks_dhs }}</td>
+          <td style="text-align: center;">{{ m.n_nim|default:"-" }}</td>
+          <td class="mono" style="font-weight: 600; color: var(--brand);">{{ m.kode_template|default:"-" }}</td>
+          <td>{{ m.nama_template|default:"-" }}</td>
+          <td style="font-size: 12px; color: var(--muted);">{{ m.rekomendasi }}</td>
+          <td style="text-align: center;">
+            {% if m.status == 'APPROVED-EXACT' %}
+              <span class="badge exact">EXACT</span>
+            {% elif m.status == 'APPROVED-REC' %}
+              <span class="badge rec">REC</span>
+            {% elif m.status == 'SKIP' %}
+              <span class="badge skip">SKIP</span>
+            {% else %}
+              <span class="badge gray">{{ m.status|default:'-' }}</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="9" class="empty-col">Data pemetaan kosong atau filter tidak cocok.</td></tr>
+        {% endfor %}
+      </tbody>
     </table>
   </div>
 </div>
 
-<div class="card">
-  <div class="label">Catatan keputusan</div>
-  <p style="margin:6px 0 0;font-size:13px">
-    <b>APPROVED-EXACT</b> = nama cocok persis. <b>APPROVED-REC</b> = rekomendasi yang bisa dipertanggungjawabkan. <b>SKIP</b> = ambigu, dibiarkan kosong di Excel.
+<div class="card" style="margin-top: 20px;">
+  <div class="label">Catatan Pemetaan &amp; Aturan Penyelarasan</div>
+  <p style="margin:6px 0 0;font-size:13px;line-height:1.6;">
+    &bull; <strong style="color:var(--ok);">APPROVED-EXACT</strong>: Nama mata kuliah di DHS cocok persis dengan master kurikulum.<br>
+    &bull; <strong style="color:var(--brand-2);">APPROVED-REC</strong>: Rekomendasi padanan kurikulum lama (P21/FKS/PE) ke kurikulum 2024/2026.<br>
+    &bull; <strong style="color:var(--muted);">SKIP</strong>: Mata kuliah elektif / ekstra atau ambigu yang tidak dimasukkan ke sheet kurikulum utama.
   </p>
 </div>
+
+<script>
+document.getElementById('pemetaanSearch').addEventListener('input', function() {
+  const query = this.value.toLowerCase().trim();
+  const rows = document.querySelectorAll('#pemetaanTable tbody tr.mapping-row');
+  rows.forEach(row => {
+    const text = row.textContent.toLowerCase();
+    row.style.display = text.includes(query) ? '' : 'none';
+  });
+});
+</script>
 {% endblock %}

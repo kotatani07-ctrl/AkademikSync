@@ -1,0 +1,544 @@
+{% extends "base.html" %}
+{% block title %}Pratinjau Transkrip — {{ hasil.nim }} {{ hasil.nama }}{% endblock %}
+{% block page_title %}Pratinjau Transkrip Akademik{% endblock %}
+
+{% block content %}
+<style>
+  .transcript-sheet {
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+    border: 1px solid #e2e8f0;
+    padding: 36px 40px;
+    margin-bottom: 24px;
+    color: #1e293b;
+    position: relative;
+  }
+  .transcript-sheet::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #1a5276 0%, #2e86c1 50%, #5dade2 100%);
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+  }
+  .kop-instansi {
+    text-align: center;
+    border-bottom: 2px solid #1a5276;
+    padding-bottom: 14px;
+    margin-bottom: 20px;
+  }
+  .kop-univ {
+    font-size: 1.35rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    color: #1a5276;
+    margin-bottom: 2px;
+  }
+  .kop-fakultas {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #334155;
+    margin-bottom: 2px;
+  }
+  .kop-alamat {
+    font-size: 0.8rem;
+    color: #64748b;
+  }
+  .transcript-title {
+    font-size: 1.15rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    color: #0f172a;
+    text-transform: uppercase;
+    text-align: center;
+    margin: 16px 0;
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+  .bio-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 32px;
+    font-size: 0.875rem;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin-bottom: 24px;
+  }
+  .bio-item {
+    display: flex;
+    gap: 8px;
+  }
+  .bio-label {
+    width: 145px;
+    flex-shrink: 0;
+    color: #64748b;
+    font-weight: 500;
+  }
+  .bio-val {
+    font-weight: 600;
+    color: #1e293b;
+    word-break: break-word;
+  }
+  .course-table {
+    font-size: 0.825rem;
+    margin-bottom: 20px;
+  }
+  .course-table th {
+    background-color: #f1f5f9;
+    color: #1e293b;
+    font-weight: 700;
+    border-top: 1px solid #cbd5e1;
+    border-bottom: 2px solid #94a3b8;
+    padding: 6px 8px;
+  }
+  .course-table td {
+    padding: 5px 8px;
+    vertical-align: middle;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .row-lulus {
+    background-color: #ffffff;
+  }
+  .row-retake {
+    background-color: #fefce8 !important;
+  }
+  .row-kosong {
+    background-color: #fef2f2 !important;
+  }
+  .row-unmapped {
+    background-color: #fff7ed !important;
+  }
+  .status-badge {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 9999px;
+    display: inline-block;
+  }
+  .status-lulus {
+    background: #dcfce7;
+    color: #15803d;
+  }
+  .status-retake {
+    background: #fef9c3;
+    color: #854d0e;
+    border: 1px solid #fde047;
+  }
+  .status-kosong {
+    background: #fee2e2;
+    color: #b91c1c;
+    border: 1px solid #fca5a5;
+  }
+  .status-unmapped {
+    background: #ffedd5;
+    color: #c2410c;
+    border: 1px solid #fdba74;
+  }
+  .metric-box {
+    border-radius: 12px;
+    padding: 16px 20px;
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
+  }
+  .page-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 28px 0 18px;
+    color: #94a3b8;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .page-divider::before, .page-divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: #e2e8f0;
+  }
+  .signature-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-top: 40px;
+    text-align: center;
+    font-size: 0.85rem;
+  }
+  .signature-space {
+    height: 70px;
+  }
+
+  /* ── Print layout rules ── */
+  @media print {
+    body {
+      background: #ffffff !important;
+      color: #000000 !important;
+    }
+    #appSidebar, .topbar, .action-toolbar, .metric-cards-wrapper, .btn, .breadcrumb, footer {
+      display: none !important;
+    }
+    .main-content {
+      margin-left: 0 !important;
+      padding: 0 !important;
+    }
+    .transcript-sheet {
+      border: none !important;
+      box-shadow: none !important;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+    .transcript-sheet::before {
+      display: none !important;
+    }
+    .print-page-break {
+      page-break-before: always;
+      break-before: page;
+      margin-top: 40px;
+    }
+    .status-badge {
+      border: 1px solid #000000 !important;
+    }
+    @page {
+      size: A4 portrait;
+      margin: 12mm 15mm;
+    }
+  }
+</style>
+
+<!-- Action Toolbar -->
+<div class="action-toolbar mb-4">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 bg-white p-3 rounded-3 shadow-sm border">
+    <div class="d-flex align-items-center gap-2">
+      <a href="{% url 'generate_single' %}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i>Kembali
+      </a>
+      <span class="text-muted">|</span>
+      <span class="fw-semibold text-dark">{{ hasil.nim }} — {{ hasil.nama }}</span>
+      <span class="badge bg-light text-dark border ms-1">{{ hasil.prodi }}</span>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <button onclick="window.print()" class="btn btn-outline-dark btn-sm">
+        <i class="bi bi-printer me-1"></i>Cetak Langsung
+      </button>
+
+      <!-- Unduh Excel -->
+      <form method="post" action="{% url 'generate_single' %}" class="d-inline">
+        {% csrf_token %}
+        <input type="hidden" name="nim" value="{{ hasil.nim }}">
+        <input type="hidden" name="prodi" value="{{ prodi }}">
+        <input type="hidden" name="format_output" value="xlsx">
+        <button type="submit" class="btn btn-success btn-sm">
+          <i class="bi bi-file-earmark-excel me-1"></i>Unduh Excel (.xlsx)
+        </button>
+      </form>
+
+      <!-- Unduh PDF -->
+      <form method="post" action="{% url 'generate_single' %}" class="d-inline">
+        {% csrf_token %}
+        <input type="hidden" name="nim" value="{{ hasil.nim }}">
+        <input type="hidden" name="prodi" value="{{ prodi }}">
+        <input type="hidden" name="format_output" value="pdf">
+        <button type="submit" class="btn btn-danger btn-sm">
+          <i class="bi bi-file-earmark-pdf me-1"></i>Unduh PDF Resmi
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- KPI Metric Cards -->
+<div class="metric-cards-wrapper row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="metric-box shadow-sm">
+      <div class="text-muted small fw-semibold">Indeks Prestasi Kumulatif</div>
+      <div class="d-flex align-items-baseline gap-2 mt-1">
+        <span class="fs-3 fw-bold text-primary">{{ hasil.ipk }}</span>
+        <span class="badge bg-primary-subtle text-primary small">{{ hasil.predikat|default:"Lulus" }}</span>
+      </div>
+      <div class="text-muted" style="font-size:0.75rem">Dari skala 4.00</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="metric-box shadow-sm">
+      <div class="text-muted small fw-semibold">Total SKS &amp; Mutu</div>
+      <div class="d-flex align-items-baseline gap-2 mt-1">
+        <span class="fs-3 fw-bold text-dark">{{ hasil.total_sks }}</span>
+        <span class="text-muted small">SKS</span>
+        <span class="badge bg-light text-secondary border ms-auto">{{ hasil.total_mutu }} Mutu</span>
+      </div>
+      <div class="text-muted" style="font-size:0.75rem">Total {{ total_mk }} MK kurikulum</div>
+    </div>
+  </div>
+  <div class="col-12 col-md-6">
+    <div class="metric-box shadow-sm">
+      <div class="text-muted small fw-semibold mb-2">Status Verifikasi Mata Kuliah</div>
+      <div class="d-flex flex-wrap gap-2">
+        <span class="badge status-lulus px-2 py-1">
+          <i class="bi bi-check-circle me-1"></i>Lulus Valid: <strong>{{ mk_lulus_count }}</strong>
+        </span>
+        <span class="badge status-retake px-2 py-1">
+          <i class="bi bi-arrow-repeat me-1"></i>Retake: <strong>{{ hasil.jumlah_mk_retake }}</strong>
+        </span>
+        <span class="badge status-kosong px-2 py-1">
+          <i class="bi bi-exclamation-triangle me-1"></i>Belum Ada Nilai: <strong>{{ hasil.jumlah_mk_kosong }}</strong>
+        </span>
+        {% if hasil.jumlah_mk_tidak_dikenali %}
+        <span class="badge status-unmapped px-2 py-1">
+          <i class="bi bi-question-circle me-1"></i>Di Luar Kurikulum: <strong>{{ hasil.jumlah_mk_tidak_dikenali }}</strong>
+        </span>
+        {% endif %}
+      </div>
+      <div class="text-muted mt-2" style="font-size:0.75rem">
+        Sumber data: <span class="fw-semibold text-dark text-capitalize">{{ hasil.sumber_nilai }}</span>
+        {% if hasil.sumber_nilai == 'dhs' %}(Fallback scraping eCampuz){% else %}(Neo Feeder PDDIKTI Live){% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Lembar Transkrip Resmi UIS -->
+<div class="transcript-sheet">
+  <!-- Kop Dokumen Resmi -->
+  <div class="kop-instansi">
+    <div class="kop-univ">UNIVERSITAS ICHSAN SATYA</div>
+    <div class="kop-fakultas">FAKULTAS KESEHATAN DAN TEKNOLOGI</div>
+    <div class="kop-alamat">
+      SK Kemendikbudristek No. 237/E/O/2022 &bull; Akreditasi Baik Sekali<br>
+      Jl. Jombang Raya No. 41 Bintaro, Tangerang Selatan &bull; Telp. (021) 7455500
+    </div>
+  </div>
+
+  <div class="transcript-title">TRANSKRIP AKADEMIK SEMENTARA</div>
+
+  <!-- Biodata Mahasiswa -->
+  <div class="bio-grid">
+    <div class="bio-item">
+      <span class="bio-label">Nama Mahasiswa</span>
+      <span class="bio-val">: {{ hasil.nama }}</span>
+    </div>
+    <div class="bio-item">
+      <span class="bio-label">Tempat, Tgl Lahir</span>
+      <span class="bio-val">: {{ hasil.tempat_lahir|default:"-" }}, {{ hasil.tanggal_lahir|default:"-" }}</span>
+    </div>
+    <div class="bio-item">
+      <span class="bio-label">Nomor Induk Mhs (NIM)</span>
+      <span class="bio-val">: {{ hasil.nim }}</span>
+    </div>
+    <div class="bio-item">
+      <span class="bio-label">Nomor Ijazah Nasional</span>
+      <span class="bio-val">: {{ data_pendukung.nomor_ijazah_nasional|default:"-" }}</span>
+    </div>
+    <div class="bio-item">
+      <span class="bio-label">Program Studi</span>
+      <span class="bio-val">: {{ hasil.prodi }}</span>
+    </div>
+    <div class="bio-item">
+      <span class="bio-label">Tanggal Kelulusan</span>
+      <span class="bio-val">: {{ hasil.tanggal_lulus|default:"-" }}</span>
+    </div>
+    <div class="bio-item">
+      <span class="bio-label">Jenjang Pendidikan</span>
+      <span class="bio-val">: {{ hasil.jenjang }} (Angkatan {{ hasil.angkatan }})</span>
+    </div>
+    <div class="bio-item">
+      <span class="bio-label">Status Kelulusan</span>
+      <span class="bio-val">: {{ hasil.status_mahasiswa|default:"Lulus" }}</span>
+    </div>
+    {% if data_pendukung.judul_skripsi %}
+    <div class="bio-item" style="grid-column: 1 / -1;">
+      <span class="bio-label">Judul Skripsi / KTI</span>
+      <span class="bio-val">: <em>{{ data_pendukung.judul_skripsi }}</em></span>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- HALAMAN 1 -->
+  <div class="page-divider">
+    <span>Halaman 1 dari 2</span>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-sm course-table table-bordered">
+      <thead>
+        <tr>
+          <th style="width: 40px; text-align: center;">NO</th>
+          <th style="width: 110px;">KODE MK</th>
+          <th>MATA KULIAH</th>
+          <th style="width: 60px; text-align: center;">SKS</th>
+          <th style="width: 65px; text-align: center;">NILAI</th>
+          <th style="width: 65px; text-align: center;">BOBOT</th>
+          <th style="width: 65px; text-align: center;">MUTU</th>
+          <th style="width: 100px; text-align: center;">STATUS</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for mk in halaman_1 %}
+        <tr class="{% if mk.is_kosong %}row-kosong{% elif mk.is_retake %}row-retake{% else %}row-lulus{% endif %}">
+          <td class="text-center text-muted">{{ forloop.counter }}</td>
+          <td class="font-monospace fw-semibold">{{ mk.kode_mk }}</td>
+          <td>{{ mk.nama_mk }}</td>
+          <td class="text-center">{{ mk.sks }}</td>
+          <td class="text-center fw-bold">{{ mk.nilai_lambang|default:"-" }}</td>
+          <td class="text-center">{{ mk.bobot|floatformat:2 }}</td>
+          <td class="text-center">{{ mk.mutu|floatformat:2 }}</td>
+          <td class="text-center">
+            {% if mk.is_kosong %}
+              <span class="status-badge status-kosong">Kosong</span>
+            {% elif mk.is_retake %}
+              <span class="status-badge status-retake" title="Retake: Nilai tertinggi diambil">Retake</span>
+            {% elif mk.is_tidak_lulus %}
+              <span class="status-badge status-kosong">Tdk Lulus</span>
+            {% else %}
+              <span class="status-badge status-lulus">Lulus</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" class="text-center text-muted py-3">Tidak ada mata kuliah</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- HALAMAN 2 -->
+  <div class="print-page-break"></div>
+  <div class="page-divider">
+    <span>Halaman 2 dari 2</span>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-sm course-table table-bordered">
+      <thead>
+        <tr>
+          <th style="width: 40px; text-align: center;">NO</th>
+          <th style="width: 110px;">KODE MK</th>
+          <th>MATA KULIAH</th>
+          <th style="width: 60px; text-align: center;">SKS</th>
+          <th style="width: 65px; text-align: center;">NILAI</th>
+          <th style="width: 65px; text-align: center;">BOBOT</th>
+          <th style="width: 65px; text-align: center;">MUTU</th>
+          <th style="width: 100px; text-align: center;">STATUS</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for mk in halaman_2 %}
+        <tr class="{% if mk.is_kosong %}row-kosong{% elif mk.is_retake %}row-retake{% else %}row-lulus{% endif %}">
+          <td class="text-center text-muted">{{ forloop.counter|add:halaman_1|length }}</td>
+          <td class="font-monospace fw-semibold">{{ mk.kode_mk }}</td>
+          <td>{{ mk.nama_mk }}</td>
+          <td class="text-center">{{ mk.sks }}</td>
+          <td class="text-center fw-bold">{{ mk.nilai_lambang|default:"-" }}</td>
+          <td class="text-center">{{ mk.bobot|floatformat:2 }}</td>
+          <td class="text-center">{{ mk.mutu|floatformat:2 }}</td>
+          <td class="text-center">
+            {% if mk.is_kosong %}
+              <span class="status-badge status-kosong">Kosong</span>
+            {% elif mk.is_retake %}
+              <span class="status-badge status-retake" title="Retake: Nilai tertinggi diambil">Retake</span>
+            {% elif mk.is_tidak_lulus %}
+              <span class="status-badge status-kosong">Tdk Lulus</span>
+            {% else %}
+              <span class="status-badge status-lulus">Lulus</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" class="text-center text-muted py-3">Tidak ada mata kuliah lanjutan</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Out of Curriculum Courses (jika ada) -->
+  {% if hasil.mk_tidak_dikenali %}
+  <div class="mt-4 p-3 bg-light rounded-3 border">
+    <div class="fw-semibold text-warning-emphasis small mb-2">
+      <i class="bi bi-exclamation-triangle-fill text-warning me-1"></i>
+      Mata Kuliah dari Feeder di Luar Master Kurikulum (Tercatat di Sheet Laporan):
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm course-table table-bordered mb-0">
+        <thead>
+          <tr class="table-warning">
+            <th style="width:40px; text-align:center;">NO</th>
+            <th style="width:110px;">KODE MK</th>
+            <th>NAMA MATA KULIAH</th>
+            <th style="width:60px; text-align:center;">SKS</th>
+            <th style="width:65px; text-align:center;">NILAI</th>
+            <th style="width:100px; text-align:center;">STATUS</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for mk in hasil.mk_tidak_dikenali %}
+          <tr class="row-unmapped">
+            <td class="text-center text-muted">{{ forloop.counter }}</td>
+            <td class="font-monospace fw-semibold">{{ mk.kode_mk }}</td>
+            <td>{{ mk.nama_mk }}</td>
+            <td class="text-center">{{ mk.sks_api }}</td>
+            <td class="text-center fw-bold">{{ mk.nilai_lambang|default:"-" }}</td>
+            <td class="text-center"><span class="status-badge status-unmapped">Elektif/Ekstra</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Ringkasan Prestasi Akademik -->
+  <div class="row g-3 mt-4 pt-3 border-top">
+    <div class="col-md-7">
+      <table class="table table-sm table-borderless text-dark small mb-0">
+        <tr>
+          <td style="width:230px;" class="fw-semibold">Total SKS Kumulatif</td>
+          <td>: <strong class="fs-6">{{ hasil.total_sks }}</strong> SKS</td>
+        </tr>
+        <tr>
+          <td class="fw-semibold">Total Angka Mutu</td>
+          <td>: <strong class="fs-6">{{ hasil.total_mutu|floatformat:2 }}</strong></td>
+        </tr>
+        <tr>
+          <td class="fw-semibold">Indeks Prestasi Kumulatif (IPK)</td>
+          <td>: <strong class="fs-5 text-primary">{{ hasil.ipk }}</strong> (skala 4.00)</td>
+        </tr>
+        <tr>
+          <td class="fw-semibold">Predikat Kelulusan</td>
+          <td>: <strong class="fs-6 text-success">{{ hasil.predikat|default:"Lulus" }}</strong></td>
+        </tr>
+      </table>
+    </div>
+    <div class="col-md-5">
+      <div class="p-3 bg-light rounded-2 border text-muted" style="font-size:0.75rem">
+        <strong>Ketentuan Predikat Kelulusan:</strong><br>
+        &bull; 3.51 - 4.00 : Dengan Pujian (Cum Laude)<br>
+        &bull; 3.01 - 3.50 : Sangat Memuaskan<br>
+        &bull; 2.76 - 3.00 : Memuaskan<br>
+        &bull; 2.00 - 2.75 : Cukup
+      </div>
+    </div>
+  </div>
+
+  <!-- Kolom Pengesahan Tanda Tangan -->
+  <div class="signature-grid">
+    <div>
+      <div class="text-muted small">Mengetahui,</div>
+      <div class="fw-bold">Ketua Program Studi {{ hasil.prodi }}</div>
+      <div class="signature-space"></div>
+      <div class="fw-bold text-decoration-underline">(...................................................)</div>
+      <div class="text-muted small">NIDN. .....................................</div>
+    </div>
+    <div>
+      <div class="text-muted small">Tangerang Selatan, {% now "d F Y" %}</div>
+      <div class="fw-bold">Dekan Fakultas Kesehatan dan Teknologi</div>
+      <div class="signature-space"></div>
+      <div class="fw-bold text-decoration-underline">{{ dekan_nama }}</div>
+      <div class="text-muted small">NIDN. .....................................</div>
+    </div>
+  </div>
+</div>
+{% endblock %}

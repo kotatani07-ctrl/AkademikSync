@@ -5,23 +5,28 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}AkademikSync Dashboard{% endblock %}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'dashboard/style.css' %}">
 </head>
 <body>
   <nav class="navbar">
     <div class="nav-inner">
-      <a class="brand" href="{% url 'dashboard:dashboard' %}">Akademik<span>Sync</span></a>
+      <a class="brand" href="{% url 'dashboard' %}" title="Kembali ke Dashboard Utama">
+        <i class="bi bi-mortarboard-fill me-1"></i>Akademik<span>Sync</span>
+      </a>
       <div class="nav-links">
         {% with ep=request.resolver_match.url_name %}
-        <a class="{% if ep == 'dashboard' %}active{% endif %}" href="{% url 'dashboard:dashboard' %}">Dashboard</a>
-        <a class="{% if ep == 'daftar_mahasiswa' %}active{% endif %}" href="{% url 'dashboard:daftar_mahasiswa' %}">Mahasiswa</a>
-        <a class="{% if ep == 'pemetaan' %}active{% endif %}" href="{% url 'dashboard:pemetaan' %}">Pemetaan</a>
+        <a class="{% if ep == 'dashboard' %}active{% endif %}" href="{% url 'dashboard:dashboard' %}">Dashboard eCampuz</a>
+        <a class="{% if ep == 'daftar_mahasiswa' or ep == 'detail_mahasiswa' %}active{% endif %}" href="{% url 'dashboard:daftar_mahasiswa' %}">Mahasiswa</a>
+        <a class="{% if ep == 'pemetaan' %}active{% endif %}" href="{% url 'dashboard:pemetaan' %}">Pemetaan MK</a>
         <a class="{% if ep == 'scrape' %}active{% endif %}" href="{% url 'dashboard:scrape' %}">Jalankan Bot</a>
         <a class="{% if ep == 'login_page' %}active{% endif %}" href="{% url 'dashboard:login_page' %}">Login eCampuz</a>
         <a class="{% if ep == 'yudisium_page' %}active{% endif %}" href="{% url 'dashboard:yudisium_page' %}">Yudisium</a>
         <a class="{% if ep == 'grade_entry_page' %}active{% endif %}" href="{% url 'dashboard:grade_entry_page' %}">Input Nilai</a>
         <a class="{% if ep == 'audit_page' %}active{% endif %}" href="{% url 'dashboard:audit_page' %}">Audit</a>
         {% endwith %}
+        <a href="{% url 'generate_single' %}"><i class="bi bi-person-vcard me-1"></i>Generate Transkrip</a>
+        <a href="{% url 'dashboard' %}"><i class="bi bi-house me-1"></i>Menu Utama</a>
       </div>
       <span class="session-badge {% if session_file %}ok{% else %}no{% endif %}">{% if session_file %}Sesi tersimpan{% else %}Belum login{% endif %}</span>
     </div>

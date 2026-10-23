@@ -142,5 +142,8 @@ DEFAULT_NAMA_DEKAN  # Nama dekan default di transkrip
 | 2026-10-15 | Menambahkan halaman input nilai dry-run untuk inspeksi dan validasi Excel; belum melakukan submit nilai ke eCampuz |
 | 2026-10-12 | Master data kosong → ditambahkan `core/management/commands/seed_master_data.py`; impor Template (3), Kurikulum S1 2021/2022/2024 (+MK), DataPendukung, PredikatKelulusan dari workbook transkrip |
 | 2026-10-12 | Generate single memakai engine workbook (`cell_mapping={'engine':'workbook'}`) agar output mengikuti formula template kampus; versi Django/README/CLAUDE/DEV diselaraskan ke Django 6.0 / Python 3.13 |
+| 2026-10-24 | Setup virtualenv Linux dengan uv; implementasi dynamic student/grade injection ke formula template workbook kampus (mendukung NIM baru dari Feeder); export PDF siap cetak via LibreOffice headless; paket batch ZIP transkrip resmi per mahasiswa + rekapitulasi; hardening CSRF dan random SECRET_KEY; normalisasi .gitattributes. |
+| 2026-10-24 | Background worker batch runner dengan thread-safe job tracking (`BATCH_JOBS_CACHE`), API endpoints (`/status/` dan `/download/`), animated progress bar & live table polling; Fitur Web Preview Transkrip 2 halaman interaktif (`preview_single.html`) dengan visual status badge (lulus, retake, kosong, elektif) & print stylesheet; Pembersihan file boilerplate Node/React/Vite (`src/`, `package.json`, dll) yang tidak terpakai; Seluruh 63 unit test lolos. |
 
 > Tambahkan baris baru di tabel ini setiap ada perubahan besar.
+

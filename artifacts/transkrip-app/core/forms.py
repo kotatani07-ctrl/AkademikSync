@@ -18,6 +18,16 @@ class GenerateSingleForm(forms.Form):
             'autofocus': True,
         })
     )
+    format_output = forms.ChoiceField(
+        required=False,
+        label="Format Unduhan",
+        initial='xlsx',
+        choices=[
+            ('xlsx', 'Excel (.xlsx) — Format Asli Siap Edit'),
+            ('pdf', 'PDF (.pdf) — Siap Cetak Langsung'),
+        ],
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
 
 
 class GenerateBatchForm(forms.Form):
@@ -25,6 +35,17 @@ class GenerateBatchForm(forms.Form):
         required=False,
         label="Program Studi",
         choices=[('', 'Otomatis dari data Neo Feeder'), *Kurikulum.PRODI_CHOICES],
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
+    format_output = forms.ChoiceField(
+        required=False,
+        label="Format Berkas Hasil",
+        initial='zip_xlsx',
+        choices=[
+            ('zip_xlsx', 'Paket ZIP — Transkrip Resmi Excel (.xlsx) per Mahasiswa + Laporan Rekap'),
+            ('zip_pdf', 'Paket ZIP — Transkrip Resmi PDF (.pdf) Siap Cetak per Mahasiswa + Laporan Rekap'),
+            ('xlsx', 'Rekapitulasi Gabungan Saja (.xlsx)'),
+        ],
         widget=forms.Select(attrs={'class': 'form-select'}),
     )
     FILE_CHOICES = [

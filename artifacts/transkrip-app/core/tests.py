@@ -577,3 +577,292 @@ class GenerateBatchCancellationTest(TestCase):
             reverse('cancel_generate_batch', args=[batch.pk])
         )
         self.assertEqual(404, response.status_code)
+
+    def test_batch_generate_returns_zip_package(self):
+        import io
+        import uuid
+        import zipfile
+        from types import SimpleNamespace
+        from unittest import mock
+
+        from django.contrib.auth.models import User
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from django.urls import reverse
+
+        user = User.objects.create_user('batch-zip-user', password='test')
+        self.client.force_login(user)
+        batch_id = uuid.uuid4()
+        result = SimpleNamespace(
+            nim='241010001',
+            nama='Ahmad',
+            prodi='Ilmu Keperawatan',
+            jenjang='S1',
+            angkatan=2024,
+            tempat_lahir='Jakarta',
+            tanggal_lahir='01 Jan 2002',
+            tanggal_lulus='28 Feb 2026',
+            daftar_mk=[],
+            total_sks=0,
+            ipk=Decimal('3.50'),
+            jumlah_mk_kosong=0,
+            jumlah_mk_retake=0,
+            jumlah_mk_tidak_dikenali=0,
+            sumber_nilai='feeder',
+        )
+        template = SimpleNamespace(
+            file_excel=SimpleNamespace(path='dummy.xlsx'),
+            cell_mapping={'engine': 'manual'},
+        )
+
+        with mock.patch('core.views._proses_satu_nim', return_value=(result, None, template)), \
+             mock.patch('core.views.generate_batch_excel', return_value=b'rekap content'), \
+             mock.patch('core.views.generate_single_excel', return_value=b'single content'):
+            response = self.client.post(
+                reverse('generate_batch'),
+                {
+                    'batch_id': str(batch_id),
+                    'format_output': 'zip_xlsx',
+                    'file_nim': SimpleUploadedFile(
+                        'nim.txt', b'241010001\n', content_type='text/plain'
+                    ),
+                },
+            )
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual('application/zip', response['Content-Type'])
+        with zipfile.ZipFile(io.BytesIO(response.content)) as zf:
+            namelist = zf.namelist()
+            self.assertTrue(any('00_Rekapitulasi_Batch' in n for n in namelist))
+            self.assertTrue(any('Transkrip_241010001_Ahmad.xlsx' in n for n in namelist))
+            self.assertEqual(b'rekap content', zf.read(namelist[0]))
+
+    def test_single_generate_supports_pdf_format(self):
+        from types import SimpleNamespace
+        from unittest import mock
+
+        from django.contrib.auth.models import User
+        from django.urls import reverse
+
+        user = User.objects.create_user('single-pdf-user', password='test')
+        self.client.force_login(user)
+        result = SimpleNamespace(
+            nim='241010002',
+            nama='Fauzi',
+            prodi='Ilmu Keperawatan',
+            jenjang='S1',
+            angkatan=2024,
+            tempat_lahir='Jakarta',
+            tanggal_lahir='01 Jan 2002',
+            tanggal_lulus='28 Feb 2026',
+            daftar_mk=[],
+            total_sks=0,
+            ipk=Decimal('3.50'),
+        )
+        template = SimpleNamespace(
+            file_excel=SimpleNamespace(path='dummy.xlsx'),
+            cell_mapping={},
+        )
+
+        with mock.patch('core.views._proses_satu_nim', return_value=(result, None, template)), \
+             mock.patch('core.views.generate_single_excel', return_value=b'excel content'), \
+             mock.patch('dashboard.services.transcript_export.convert_excel_to_pdf', return_value=b'%PDF-1.4 mock'):
+            response = self.client.post(
+                reverse('generate_single'),
+                {
+                    'nim': '241010002',
+                    'prodi': '',
+                    'format_output': 'pdf',
+                },
+            )
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual('application/pdf', response['Content-Type'])
+        self.assertEqual(b'%PDF-1.4 mock', response.content)
+
+    def test_batch_generate_async_starts_background_job(self):
+        import uuid
+        from unittest import mock
+        from django.contrib.auth.models import User
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from django.urls import reverse
+
+        user = User.objects.create_user('async-batch-user', password='test')
+        self.client.force_login(user)
+        batch_id = uuid.uuid4()
+
+        with mock.patch('core.views.threading.Thread') as mock_thread:
+            response = self.client.post(
+                reverse('generate_batch'),
+                {
+                    'batch_id': str(batch_id),
+                    'format_output': 'zip_xlsx',
+                    'is_async': '1',
+                    'file_nim': SimpleUploadedFile(
+                        'nim.txt', b'241010001\n241010002\n', content_type='text/plain'
+                    ),
+                },
+            )
+
+        self.assertEqual(200, response.status_code)
+        data = response.json()
+        self.assertTrue(data.get('ok'))
+        self.assertEqual(str(batch_id), data.get('batch_id'))
+        self.assertEqual(2, data.get('total'))
+        self.assertTrue(mock_thread.called)
+
+    def test_batch_status_endpoint_returns_progress(self):
+        import uuid
+        from django.contrib.auth.models import User
+        from django.urls import reverse
+        from core.views import BATCH_JOBS_CACHE, BATCH_JOBS_LOCK
+
+        user = User.objects.create_user('batch-status-user', password='test')
+        self.client.force_login(user)
+        batch_id = uuid.uuid4()
+
+        with BATCH_JOBS_LOCK:
+            BATCH_JOBS_CACHE[batch_id] = {
+                'status': 'running',
+                'total': 10,
+                'processed': 5,
+                'percent': 50,
+                'current_nim': '241010005',
+                'success_count': 4,
+                'error_count': 1,
+                'results': [{'nim': '241010001', 'nama': 'Test', 'status': 'success'}],
+                'download_ready': False,
+                'error_message': None,
+            }
+
+        response = self.client.get(reverse('batch_status', args=[batch_id]))
+        self.assertEqual(200, response.status_code)
+        data = response.json()
+        self.assertEqual('running', data['status'])
+        self.assertEqual(50, data['percent'])
+        self.assertEqual(5, data['processed'])
+        self.assertEqual('241010005', data['current_nim'])
+
+        # Not found case
+        response_404 = self.client.get(reverse('batch_status', args=[uuid.uuid4()]))
+        self.assertEqual(404, response_404.status_code)
+
+    def test_batch_download_endpoint_returns_file_when_ready(self):
+        import uuid
+        from django.contrib.auth.models import User
+        from django.urls import reverse
+        from core.views import BATCH_JOBS_CACHE, BATCH_JOBS_LOCK
+
+        user = User.objects.create_user('batch-download-user', password='test')
+        self.client.force_login(user)
+        batch_id = uuid.uuid4()
+
+        with BATCH_JOBS_LOCK:
+            BATCH_JOBS_CACHE[batch_id] = {
+                'status': 'completed',
+                'download_ready': True,
+                'file_bytes': b'PK mock zip package',
+                'filename': 'Paket_Transkrip_Batch.zip',
+                'content_type': 'application/zip',
+            }
+
+        response = self.client.get(reverse('batch_download', args=[batch_id]))
+        self.assertEqual(200, response.status_code)
+        self.assertEqual('application/zip', response['Content-Type'])
+        self.assertIn('Paket_Transkrip_Batch.zip', response['Content-Disposition'])
+        self.assertEqual(b'PK mock zip package', response.content)
+
+        # Not ready / not found case
+        response_404 = self.client.get(reverse('batch_download', args=[uuid.uuid4()]))
+        self.assertEqual(404, response_404.status_code)
+
+    def test_preview_single_redirects_if_empty_nim(self):
+        from django.contrib.auth.models import User
+        from django.urls import reverse
+
+        user = User.objects.create_user('preview-empty-user', password='test')
+        self.client.force_login(user)
+
+        response = self.client.get(reverse('preview_single'))
+        self.assertEqual(302, response.status_code)
+        self.assertIn(reverse('generate_single'), response['Location'])
+
+    def test_preview_single_renders_transcript(self):
+        from decimal import Decimal
+        from types import SimpleNamespace
+        from unittest import mock
+        from django.contrib.auth.models import User
+        from django.urls import reverse
+
+        user = User.objects.create_user('preview-view-user', password='test')
+        self.client.force_login(user)
+        nim = '241010008'
+        mk1 = SimpleNamespace(
+            kode_mk='MK101',
+            nama_mk='Etika Keperawatan',
+            sks=2,
+            nilai_lambang='A',
+            bobot=Decimal('4.00'),
+            mutu=Decimal('8.00'),
+            is_retake=False,
+            is_kosong=False,
+            is_tidak_lulus=False,
+        )
+        hasil = SimpleNamespace(
+            nim=nim,
+            nama='Rina Fitriani',
+            prodi='Ilmu Keperawatan',
+            jenjang='S1',
+            angkatan=2024,
+            tempat_lahir='Tangerang',
+            tanggal_lahir='15 Mei 2002',
+            tanggal_lulus='28 Feb 2026',
+            status_mahasiswa='LULUS',
+            total_sks=2,
+            total_mutu=Decimal('8.00'),
+            ipk=Decimal('4.00'),
+            predikat='Dengan Pujian',
+            daftar_mk=[mk1],
+            mk_tidak_dikenali=[],
+            jumlah_mk_retake=0,
+            jumlah_mk_kosong=0,
+            jumlah_mk_tidak_dikenali=0,
+            sumber_nilai='feeder',
+        )
+        data_pendukung = SimpleNamespace(
+            nomor_ijazah_nasional='PIN-12345',
+            nomor_sk_akreditasi='SK-Akred-99',
+            judul_skripsi='Asuhan Keperawatan Pasien',
+        )
+        template = SimpleNamespace(file_excel=SimpleNamespace(path='dummy.xlsx'), cell_mapping={})
+
+        with mock.patch('core.views._proses_satu_nim', return_value=(hasil, data_pendukung, template)):
+            response = self.client.get(reverse('preview_single'), {'nim': nim})
+
+        self.assertEqual(200, response.status_code)
+        self.assertTemplateUsed(response, 'preview_single.html')
+        content = response.content.decode('utf-8')
+        self.assertIn('Rina Fitriani', content)
+        self.assertIn('241010008', content)
+        self.assertIn('Etika Keperawatan', content)
+        self.assertIn('PIN-12345', content)
+        self.assertIn('Dengan Pujian', content)
+
+    def test_generate_single_preview_action_redirects(self):
+        from django.contrib.auth.models import User
+        from django.urls import reverse
+
+        user = User.objects.create_user('gen-single-preview-user', password='test')
+        self.client.force_login(user)
+
+        response = self.client.post(
+            reverse('generate_single'),
+            {
+                'nim': '241010009',
+                'prodi': 'ILMU_KEPERAWATAN',
+                'format_output': 'xlsx',
+                'action': 'preview',
+            },
+        )
+        self.assertEqual(302, response.status_code)
+        self.assertIn(reverse('preview_single'), response['Location'])
+        self.assertIn('nim=241010009', response['Location'])

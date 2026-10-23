@@ -2,14 +2,21 @@
 Django Admin untuk data master sistem transkrip.
 Fitur: upload Excel kurikulum (auto-parse), upload template, dsb.
 """
-import json
 from django import forms
 from django.contrib import admin, messages
+from django.db import transaction
+from django.shortcuts import redirect, render
+from django.urls import path
 from django.utils.html import format_html
 
 from .models import (
-    Template, Kurikulum, MataKuliahKurikulum,
-    PredikatKelulusan, DataPendukung, RiwayatGenerate
+    BatchJob,
+    DataPendukung,
+    Kurikulum,
+    MataKuliahKurikulum,
+    PredikatKelulusan,
+    RiwayatGenerate,
+    Template,
 )
 
 
@@ -22,9 +29,12 @@ def parse_excel_kurikulum(file_obj):
     """
     import openpyxl
     wb = openpyxl.load_workbook(file_obj, read_only=True, data_only=True)
-    ws = wb.active
+    try:
+        ws = wb.active
+        rows = list(ws.iter_rows(values_only=True))
+    finally:
+        wb.close()
 
-    rows = list(ws.iter_rows(values_only=True))
     if not rows:
         return []
 
@@ -105,12 +115,11 @@ class KurikulumAdmin(admin.ModelAdmin):
     inlines = [MataKuliahInline]
     change_list_template = 'admin/core/kurikulum/change_list.html'
 
+    @admin.display(description="Jumlah MK")
     def jumlah_mk(self, obj):
-        return obj.matakuliah.count()
-    jumlah_mk.short_description = "Jumlah MK"
+        return MataKuliahKurikulum.objects.filter(kurikulum=obj).count()
 
     def get_urls(self):
-        from django.urls import path
         urls = super().get_urls()
         custom_urls = [
             path(
@@ -122,9 +131,6 @@ class KurikulumAdmin(admin.ModelAdmin):
         return custom_urls + urls
 
     def upload_excel_view(self, request):
-        from django.shortcuts import render, redirect
-        from django.contrib import messages
-
         if request.method == 'POST':
             form = UploadKurikulumForm(request.POST, request.FILES)
             if form.is_valid():
@@ -162,16 +168,20 @@ class KurikulumAdmin(admin.ModelAdmin):
                     messages.error(request, f"Gagal parse Excel: {e}")
                     return redirect(request.path)
 
-                # Hapus MK lama dan isi ulang
-                kurikulum.matakuliah.all().delete()
-                for urutan, mk_data in enumerate(matakuliah, start=1):
-                    MataKuliahKurikulum.objects.create(
-                        kurikulum=kurikulum,
-                        kode_mk=mk_data['kode_mk'],
-                        nama_mk=mk_data['nama_mk'],
-                        sks=mk_data['sks'],
-                        urutan_alfabet=urutan,
-                    )
+                # Hapus MK lama dan isi ulang secara atomik
+                with transaction.atomic():
+                    kurikulum.matakuliah.all().delete()
+                    mk_objs = [
+                        MataKuliahKurikulum(
+                            kurikulum=kurikulum,
+                            kode_mk=mk_data['kode_mk'],
+                            nama_mk=mk_data['nama_mk'],
+                            sks=mk_data['sks'],
+                            urutan_alfabet=urutan,
+                        )
+                        for urutan, mk_data in enumerate(matakuliah, start=1)
+                    ]
+                    MataKuliahKurikulum.objects.bulk_create(mk_objs)
 
                 action = "dibuat baru" if created else "diperbarui"
                 messages.success(
@@ -200,11 +210,11 @@ class TemplateAdmin(admin.ModelAdmin):
     list_display = ['nama', 'total_mk', 'baris_halaman_depan', 'file_link', 'created_at']
     fields = ['nama', 'file_excel', 'total_mk', 'baris_halaman_depan', 'cell_mapping']
 
+    @admin.display(description="File")
     def file_link(self, obj):
         if obj.file_excel:
-            return format_html('<a href="{}" target="_blank">Download</a>', obj.file_excel.url)
+            return format_html('<a href="{}">Download</a>', obj.file_excel.url)
         return '-'
-    file_link.short_description = "File"
 
 
 @admin.register(MataKuliahKurikulum)
@@ -226,11 +236,11 @@ class DataPendukungAdmin(admin.ModelAdmin):
     list_display = ['nim', 'no_ijazah', 'nama_dekan', 'judul_skripsi_singkat']
     search_fields = ['nim', 'no_ijazah']
 
+    @admin.display(description="Judul Skripsi")
     def judul_skripsi_singkat(self, obj):
         if obj.judul_skripsi:
             return obj.judul_skripsi[:80] + '...' if len(obj.judul_skripsi) > 80 else obj.judul_skripsi
         return '-'
-    judul_skripsi_singkat.short_description = "Judul Skripsi"
 
 
 @admin.register(RiwayatGenerate)
@@ -248,3 +258,11 @@ class RiwayatGenerateAdmin(admin.ModelAdmin):
         'status', 'error_message', 'generated_at', 'generated_by'
     ]
     ordering = ['-generated_at']
+
+
+@admin.register(BatchJob)
+class BatchJobAdmin(admin.ModelAdmin):
+    list_display = ['id', 'requested_by', 'status', 'created_at']
+    list_filter = ['status', 'created_at']
+    readonly_fields = ['id', 'requested_by', 'created_at']
+    ordering = ['-created_at']
