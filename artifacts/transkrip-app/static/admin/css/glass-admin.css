@@ -151,7 +151,7 @@ body::after {
    4. SIDEBAR NAVIGATION
    ────────────────────────────────────────── */
 #nav-sidebar {
-  background: #1a5276 !important;
+  background: #0f172a !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   border-right: none !important;
@@ -187,7 +187,7 @@ body::after {
 }
 
 .toggle-nav-sidebar {
-  background: #1a5276 !important;
+  background: #0f172a !important;
   border-right: none !important;
   border-left: none !important;
   border-top: none !important;
@@ -309,7 +309,7 @@ body::after {
 #nav-sidebar th[scope="row"] a:hover {
   color: #fff !important;
   background: transparent !important;
-  border-left-color: #5dade2 !important;
+  border-left-color: #818cf8 !important;
 }
 
 /* Action cells (Tambah, Lihat) — pill badges */
@@ -1003,7 +1003,7 @@ input[type="checkbox"] {
     overflow-y: auto !important;
     overflow-x: hidden !important;
     /* Override glass style — use app's dark-blue sidebar */
-    background: #1a5276 !important;
+    background: #0f172a !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
     border-right: none !important;

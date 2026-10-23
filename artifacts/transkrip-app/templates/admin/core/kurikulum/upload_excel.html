@@ -1,84 +1,233 @@
 {% extends "admin/base_site.html" %}
-{% block title %}Upload Excel Kurikulum{% endblock %}
+{% load static i18n %}
+
+{% block title %}Upload Excel Kurikulum | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+  &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+  &rsaquo; <a href="{% url 'admin:core_kurikulum_changelist' %}">Kurikulum</a>
+  &rsaquo; <span>Upload Excel Kurikulum</span>
+</div>
+{% endblock %}
 
 {% block content %}
-<div style="max-width: 600px;">
-  <h1>Upload Excel Kurikulum</h1>
-  <p class="help">
-    Upload file Excel kurikulum. Sistem akan otomatis mendeteksi kolom
-    <strong>Kode MK</strong>, <strong>Mata Kuliah</strong>, dan <strong>SKS</strong>,
-    lalu menyimpan dan mengurutkan secara alfabetis berdasarkan nama mata kuliah.
-  </p>
+<div style="max-width: 760px; margin: 0 auto; padding-top: 8px;">
+
+  <!-- Page Header -->
+  <div style="margin-bottom: 24px;">
+    <div style="display:flex; align-items:center; gap: 12px; margin-bottom: 6px;">
+      <div style="
+        width: 36px; height: 36px;
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        border-radius: 10px;
+        display: flex; align-items: center; justify-content: center;
+        box-shadow: 0 4px 12px rgba(99,102,241,0.25);
+        color: #fff;
+      ">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+      </div>
+      <div>
+        <h1 style="margin: 0; font-size: 1.55rem; font-weight: 700; color: #1e1b4b; letter-spacing: -0.03em;">
+          Upload Excel Kurikulum
+        </h1>
+        <p style="margin: 2px 0 0; font-size: 0.85rem; color: #6b7280;">
+          Impor master data mata kuliah kurikulum langsung dari file Excel
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Petunjuk Format Excel (Info Box) -->
+  <div style="
+    background: rgba(99,102,241,0.06);
+    border: 1px solid rgba(99,102,241,0.18);
+    border-radius: 14px;
+    padding: 16px 20px;
+    margin-bottom: 24px;
+    display: flex; gap: 14px;
+    align-items: flex-start;
+  ">
+    <div style="color: #6366f1; flex-shrink: 0; margin-top: 2px;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="16" x2="12" y2="12"/>
+        <line x1="12" y1="8" x2="12.01" y2="8"/>
+      </svg>
+    </div>
+    <div style="font-size: 0.85rem; color: #374151; line-height: 1.55;">
+      <strong style="color: #1e1b4b;">Format Kolom yang Dibutuhkan:</strong><br>
+      File Excel harus memiliki kolom: 
+      <span style="display:inline-block;padding:1px 7px;border-radius:4px;background:#fff;border:1px solid #d1d5db;font-weight:600;color:#4338ca;font-size:0.8rem;">Kode MK</span>, 
+      <span style="display:inline-block;padding:1px 7px;border-radius:4px;background:#fff;border:1px solid #d1d5db;font-weight:600;color:#4338ca;font-size:0.8rem;">Mata Kuliah</span>, dan 
+      <span style="display:inline-block;padding:1px 7px;border-radius:4px;background:#fff;border:1px solid #d1d5db;font-weight:600;color:#4338ca;font-size:0.8rem;">SKS</span>.
+      Sistem akan otomatis membersihkan spasi dan mengurutkan mata kuliah secara alfabetis (A-Z).
+    </div>
+  </div>
 
   {% if messages %}
-  <ul class="messagelist">
+  <ul class="messagelist" style="margin-bottom: 20px;">
     {% for message in messages %}
-    <li class="{{ message.tags }}">{{ message }}</li>
+    <li class="{{ message.tags }}" style="border-radius: 10px; font-weight: 500;">{{ message }}</li>
     {% endfor %}
   </ul>
   {% endif %}
 
-  <form method="post" enctype="multipart/form-data">
-    {% csrf_token %}
-    <fieldset class="module aligned">
-      <h2>Data Kurikulum</h2>
+  <!-- Main Card Form -->
+  <div style="
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(99, 102, 241, 0.08);
+    overflow: hidden;
+  ">
+    <form method="post" enctype="multipart/form-data" style="margin: 0;">
+      {% csrf_token %}
 
-      <div class="form-row">
-        <label for="id_jenjang">Jenjang:*</label>
-        <select name="jenjang" id="id_jenjang" required>
-          <option value="">--- Pilih Jenjang ---</option>
-          <option value="D3">D3</option>
-          <option value="S1">S1</option>
-          <option value="PROF">Profesi</option>
-        </select>
-        <p class="help">Jenjang pendidikan untuk kurikulum ini</p>
+      <!-- Section: Data Kurikulum -->
+      <div style="padding: 24px 28px; border-bottom: 1px solid rgba(209,213,219,0.4);">
+        <div style="display:flex; align-items:center; gap: 8px; margin-bottom: 18px;">
+          <span style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #6366f1;">
+            Bagian 1
+          </span>
+          <h2 style="margin: 0; font-size: 1.05rem; font-weight: 700; color: #1e1b4b; letter-spacing: -0.01em;">
+            Identitas Kurikulum
+          </h2>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 18px;">
+          <!-- Jenjang -->
+          <div>
+            <label for="id_jenjang" style="display:block; font-size: 0.82rem; font-weight: 600; color: #374151; margin-bottom: 6px;">
+              Jenjang Pendidikan <span style="color:#ef4444;">*</span>
+            </label>
+            <select name="jenjang" id="id_jenjang" required style="width:100%; border-radius: 10px; border: 1px solid rgba(209,213,219,0.7); padding: 9px 12px; font-size: 0.88rem; background: #fff; outline:none;">
+              <option value="">-- Pilih Jenjang --</option>
+              <option value="D3">D3</option>
+              <option value="S1">S1</option>
+              <option value="PROF">Profesi</option>
+            </select>
+          </div>
+
+          <!-- Angkatan -->
+          <div>
+            <label for="id_angkatan" style="display:block; font-size: 0.82rem; font-weight: 600; color: #374151; margin-bottom: 6px;">
+              Tahun Angkatan <span style="color:#ef4444;">*</span>
+            </label>
+            <input type="number" name="angkatan" id="id_angkatan" placeholder="Contoh: 2024" min="2000" max="2050" required style="width:100%; border-radius: 10px; border: 1px solid rgba(209,213,219,0.7); padding: 9px 12px; font-size: 0.88rem; background: #fff; outline:none;">
+          </div>
+
+          <!-- Program Studi -->
+          <div style="grid-column: span 2;">
+            <label for="id_prodi" style="display:block; font-size: 0.82rem; font-weight: 600; color: #374151; margin-bottom: 6px;">
+              Program Studi
+            </label>
+            <select name="prodi" id="id_prodi" style="width:100%; border-radius: 10px; border: 1px solid rgba(209,213,219,0.7); padding: 9px 12px; font-size: 0.88rem; background: #fff; outline:none;">
+              <option value="">-- Kurikulum umum / lama (semua prodi) --</option>
+              {% for value, label in prodi_choices %}
+              <option value="{{ value }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+            <p style="margin: 4px 0 0; font-size: 0.74rem; color: #9ca3af;">Pilih program studi spesifik atau biarkan kosong untuk kurikulum umum.</p>
+          </div>
+
+          <!-- Template Excel -->
+          <div style="grid-column: span 2;">
+            <label for="id_template" style="display:block; font-size: 0.82rem; font-weight: 600; color: #374151; margin-bottom: 6px;">
+              Template Excel Transkrip
+            </label>
+            <select name="template" id="id_template" style="width:100%; border-radius: 10px; border: 1px solid rgba(209,213,219,0.7); padding: 9px 12px; font-size: 0.88rem; background: #fff; outline:none;">
+              <option value="">-- (Opsional) Pilih template nanti --</option>
+              {% for t in templates %}
+              <option value="{{ t.pk }}">{{ t.nama }} ({{ t.total_mk }} MK)</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
       </div>
 
-      <div class="form-row">
-        <label for="id_prodi">Program Studi:</label>
-        <select name="prodi" id="id_prodi">
-          <option value="">--- Kurikulum umum / lama ---</option>
-          {% for value, label in prodi_choices %}
-          <option value="{{ value }}">{{ label }}</option>
-          {% endfor %}
-        </select>
+      <!-- Section: File Upload -->
+      <div style="padding: 24px 28px;">
+        <div style="display:flex; align-items:center; gap: 8px; margin-bottom: 18px;">
+          <span style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #6366f1;">
+            Bagian 2
+          </span>
+          <h2 style="margin: 0; font-size: 1.05rem; font-weight: 700; color: #1e1b4b; letter-spacing: -0.01em;">
+            File Dokumen Kurikulum
+          </h2>
+        </div>
+
+        <div>
+          <label for="id_file_kurikulum" style="display:block; font-size: 0.82rem; font-weight: 600; color: #374151; margin-bottom: 6px;">
+            Pilih File Excel (.xlsx / .xls) <span style="color:#ef4444;">*</span>
+          </label>
+          <div style="
+            border: 2px dashed rgba(99,102,241,0.3);
+            border-radius: 14px;
+            padding: 24px;
+            text-align: center;
+            background: rgba(249,250,251,0.6);
+            transition: all 0.2s;
+          ">
+            <input type="file" name="file_kurikulum" id="id_file_kurikulum" accept=".xlsx, .xls" required style="font-size: 0.88rem; color: #4b5563;">
+            <p style="margin: 8px 0 0; font-size: 0.76rem; color: #9ca3af;">Mendukung format .xlsx dan .xls</p>
+          </div>
+        </div>
       </div>
 
-      <div class="form-row">
-        <label for="id_angkatan">Angkatan:*</label>
-        <input type="number" name="angkatan" id="id_angkatan"
-               placeholder="Misal: 2020" min="2000" max="2050" required>
-        <p class="help">Tahun angkatan mahasiswa</p>
+      <!-- Action Footer -->
+      <div style="
+        padding: 18px 28px;
+        background: rgba(249,250,251,0.7);
+        border-top: 1px solid rgba(209,213,219,0.4);
+        display: flex; align-items: center; justify-content: flex-end;
+        gap: 12px;
+      ">
+        <a href="../" style="
+          display: inline-flex; align-items: center;
+          padding: 10px 18px;
+          border-radius: 10px;
+          font-size: 0.86rem; font-weight: 600;
+          color: #6b7280;
+          text-decoration: none;
+          background: #fff;
+          border: 1px solid rgba(209,213,219,0.7);
+          transition: all 0.15s;
+        " onmouseover="this.style.color='#374151';this.style.borderColor='#9ca3af'"
+           onmouseout="this.style.color='#6b7280';this.style.borderColor='rgba(209,213,219,0.7)'">
+          Batal
+        </a>
+
+        <button type="submit" style="
+          display: inline-flex; align-items: center; gap: 8px;
+          padding: 10px 22px;
+          border-radius: 10px;
+          font-size: 0.86rem; font-weight: 600;
+          color: #fff;
+          background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+          border: none;
+          cursor: pointer;
+          box-shadow: 0 4px 14px rgba(99,102,241,0.35);
+          transition: all 0.18s;
+        " onmouseover="this.style.boxShadow='0 6px 20px rgba(99,102,241,0.45)';this.style.transform='translateY(-1px)'"
+           onmouseout="this.style.boxShadow='0 4px 14px rgba(99,102,241,0.35)';this.style.transform='translateY(0)'">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          Upload &amp; Import Kurikulum
+        </button>
       </div>
 
-      <div class="form-row">
-        <label for="id_template">Template Excel:</label>
-        <select name="template" id="id_template">
-          <option value="">--- (opsional) ---</option>
-          {% for t in templates %}
-          <option value="{{ t.pk }}">{{ t.nama }}</option>
-          {% endfor %}
-        </select>
-        <p class="help">Template Excel untuk generate transkrip angkatan ini</p>
-      </div>
-    </fieldset>
-
-    <fieldset class="module aligned">
-      <h2>File Kurikulum</h2>
-      {% for field in form %}
-      <div class="form-row">
-        <label for="{{ field.id_for_label }}">{{ field.label }}:</label>
-        {{ field }}
-        {% if field.help_text %}<p class="help">{{ field.help_text }}</p>{% endif %}
-        {% for error in field.errors %}<p class="errornote">{{ error }}</p>{% endfor %}
-      </div>
-      {% endfor %}
-    </fieldset>
-
-    <div class="submit-row">
-      <input type="submit" value="Upload &amp; Import" class="default">
-      <a href="../" class="closelink">Batal</a>
-    </div>
-  </form>
+    </form>
+  </div>
 </div>
 {% endblock %}

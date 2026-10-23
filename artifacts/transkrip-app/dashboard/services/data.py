@@ -229,12 +229,53 @@ def checkpoint(angkatan: str) -> dict:
 _xl_cache: dict = {"mtime": -1, "data": None}
 
 
+BOBOT_MAP = {
+    "A": 4.0,
+    "A-": 3.85,
+    "B+": 3.25,
+    "B": 3.0,
+    "B-": 2.85,
+    "C+": 2.35,
+    "C": 2.0,
+    "D": 1.0,
+    "E": 0.0,
+}
+
+
 def _excel_record(row: tuple) -> dict:
     def v(i):
         # read_only=True -> openpyxl memberi ReadOnlyCell, bukan nilai biasa.
         cell = row[i]
         val = getattr(cell, "value", cell)
         return "" if val is None else val
+
+    sks = v(6)
+    semester = "" if v(7) == "" else str(v(7))
+    indeks = v(8)
+    huruf = str(v(9)).strip() if v(9) != "" else ""
+    sks_indeks = v(10)
+
+    # 1. Fallback jika indeks di Excel kosong/None tapi Huruf ada
+    if (indeks == "" or indeks is None) and huruf:
+        h_upper = huruf.upper()
+        if h_upper in BOBOT_MAP:
+            indeks = BOBOT_MAP[h_upper]
+
+    # 2. Fallback jika sks_indeks di Excel kosong/formula belum dievaluasi
+    if (sks_indeks == "" or sks_indeks is None) and indeks != "" and sks != "":
+        try:
+            sks_num = float(sks)
+            idx_num = float(indeks)
+            calc_val = round(sks_num * idx_num, 2)
+            sks_indeks = int(calc_val) if calc_val.is_integer() else calc_val
+        except (ValueError, TypeError):
+            pass
+
+    # 3. Fallback jika semester di kolom H kosong tapi ada di kolom P (raw data scraping)
+    if not semester and len(row) > 15:
+        p_val = getattr(row[15], "value", row[15])
+        if p_val:
+            semester = str(p_val).strip()
 
     rec = {
         "no": v(0),
@@ -243,13 +284,13 @@ def _excel_record(row: tuple) -> dict:
         "kode": str(v(3)).strip() if v(3) != "" else "",
         "nama_id": v(4),
         "nama_en": v(5),
-        "sks": v(6),
-        "semester": "" if v(7) == "" else str(v(7)),
-        "indeks": v(8),
-        "huruf": str(v(9)).strip() if v(9) != "" else "",
-        "sks_indeks": v(10),
+        "sks": sks,
+        "semester": semester,
+        "indeks": indeks,
+        "huruf": huruf,
+        "sks_indeks": sks_indeks,
     }
-    rec["terisi"] = bool(rec["semester"] and rec["huruf"] and rec["indeks"] != "")
+    rec["terisi"] = bool(rec["huruf"] and rec["indeks"] != "")
     return rec
 
 
