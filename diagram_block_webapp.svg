@@ -1,0 +1,154 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1060 760" width="100%" height="100%" style="background:#0f172a; font-family:system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, sans-serif;">
+  <defs>
+    <linearGradient id="headerGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="50%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#ec4899"/>
+    </linearGradient>
+    <filter id="shadowGlow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#000000" flood-opacity="0.45"/>
+    </filter>
+    <marker id="arrowHead" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 8 5 L 0 9 z" fill="#38bdf8"/>
+    </marker>
+    <marker id="arrowHeadPurple" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 8 5 L 0 9 z" fill="#c084fc"/>
+    </marker>
+    <marker id="arrowHeadGreen" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 8 5 L 0 9 z" fill="#34d399"/>
+    </marker>
+  </defs>
+
+  <!-- Header Banner -->
+  <rect x="30" y="25" width="1000" height="65" rx="12" fill="#1e293b" stroke="#334155" stroke-width="1.5" filter="url(#shadowGlow)"/>
+  <rect x="30" y="25" width="1000" height="4" rx="2" fill="url(#headerGrad)"/>
+  <text x="50" y="64" fill="#ffffff" font-size="20" font-weight="700">DIAGRAM BLOK ARSITEKTUR KESELURUHAN WEB APP TRANSKRIP &amp; IJAZAH</text>
+  <text x="810" y="62" fill="#94a3b8" font-size="13" font-weight="500">Django 5.2 • Neo Feeder • eCampuz</text>
+
+  <!-- LAYER 1: USER & ROLES LAYER -->
+  <g transform="translate(30, 115)">
+    <rect width="1000" height="100" rx="12" fill="#1e293b" stroke="#3b82f6" stroke-width="1.2" filter="url(#shadowGlow)"/>
+    <text x="25" y="30" fill="#60a5fa" font-size="13" font-weight="700">LAYER 1: USER ROLES &amp; CLIENT ACCESS</text>
+
+    <!-- Super Admin -->
+    <rect x="25" y="42" width="300" height="46" rx="8" fill="#0f172a" stroke="#ef4444"/>
+    <circle cx="45" cy="65" r="7" fill="#ef4444"/>
+    <text x="60" y="62" fill="#fca5a5" font-size="12" font-weight="700">Super Administrator</text>
+    <text x="60" y="78" fill="#94a3b8" font-size="10">Full Access: Django Admin, Kurikulum, User Mgmt</text>
+
+    <!-- Operator Akademik -->
+    <rect x="350" y="42" width="310" height="46" rx="8" fill="#0f172a" stroke="#3b82f6"/>
+    <circle cx="370" cy="65" r="7" fill="#3b82f6"/>
+    <text x="385" y="62" fill="#93c5fd" font-size="12" font-weight="700">Operator Akademik (Staff)</text>
+    <text x="385" y="78" fill="#94a3b8" font-size="10">Generate Single/Batch, Yudisium Bot, Riwayat</text>
+
+    <!-- Auditor / Viewer -->
+    <rect x="685" y="42" width="290" height="46" rx="8" fill="#0f172a" stroke="#10b981"/>
+    <circle cx="705" cy="65" r="7" fill="#10b981"/>
+    <text x="720" y="62" fill="#6ee7b7" font-size="12" font-weight="700">Auditor / Read-Only User</text>
+    <text x="720" y="78" fill="#94a3b8" font-size="10">View Dashboard, Log Audit, Monitoring Status</text>
+  </g>
+
+  <!-- LAYER 2: WEB UI & PRESENTATION -->
+  <g transform="translate(30, 235)">
+    <rect width="1000" height="115" rx="12" fill="#1e293b" stroke="#8b5cf6" stroke-width="1.2" filter="url(#shadowGlow)"/>
+    <text x="25" y="28" fill="#c084fc" font-size="13" font-weight="700">LAYER 2: WEB UI &amp; NAVIGATION MODULES</text>
+
+    <rect x="25" y="40" width="175" height="60" rx="8" fill="#0f172a" stroke="#334155"/>
+    <text x="35" y="64" fill="#e2e8f0" font-size="12" font-weight="600">Dashboard &amp; Riwayat</text>
+    <text x="35" y="82" fill="#94a3b8" font-size="10">Statistik, filter log, status</text>
+
+    <rect x="220" y="40" width="185" height="60" rx="8" fill="#0f172a" stroke="#334155"/>
+    <text x="230" y="64" fill="#e2e8f0" font-size="12" font-weight="600">Generate Single &amp; Batch</text>
+    <text x="230" y="82" fill="#94a3b8" font-size="10">Input NIM / Upload Roster</text>
+
+    <rect x="425" y="40" width="180" height="60" rx="8" fill="#0f172a" stroke="#334155"/>
+    <text x="435" y="64" fill="#e2e8f0" font-size="12" font-weight="600">Pendaftaran Yudisium</text>
+    <text x="435" y="82" fill="#94a3b8" font-size="10">Bot Playwright &amp; Roster</text>
+
+    <rect x="625" y="40" width="180" height="60" rx="8" fill="#0f172a" stroke="#334155"/>
+    <text x="635" y="64" fill="#e2e8f0" font-size="12" font-weight="600">Pemetaan &amp; Validasi</text>
+    <text x="635" y="82" fill="#94a3b8" font-size="10">Audit kurikulum &amp; XLS</text>
+
+    <rect x="825" y="40" width="150" height="60" rx="8" fill="#0f172a" stroke="#8b5cf6"/>
+    <text x="835" y="64" fill="#c084fc" font-size="12" font-weight="600">Django Admin</text>
+    <text x="835" y="82" fill="#94a3b8" font-size="10">Master data panel</text>
+  </g>
+
+  <!-- LAYER 3: CORE BACKEND & SERVICE LAYER -->
+  <g transform="translate(30, 370)">
+    <rect width="1000" height="185" rx="12" fill="#1e293b" stroke="#ec4899" stroke-width="1.2" filter="url(#shadowGlow)"/>
+    <text x="25" y="28" fill="#f472b6" font-size="13" font-weight="700">LAYER 3: BACKEND SERVICES &amp; PROCESSING ENGINES</text>
+
+    <!-- Service 1: Neo Feeder Client -->
+    <rect x="25" y="42" width="225" height="125" rx="8" fill="#0f172a" stroke="#334155"/>
+    <text x="38" y="68" fill="#38bdf8" font-size="13" font-weight="700">Neo Feeder Service</text>
+    <text x="38" y="90" fill="#e2e8f0" font-size="11">• Token Auth &amp; Caching</text>
+    <text x="38" y="108" fill="#e2e8f0" font-size="11">• GetBiodataMahasiswa</text>
+    <text x="38" y="126" fill="#e2e8f0" font-size="11">• GetNilaiPerkuliahan</text>
+    <text x="38" y="144" fill="#94a3b8" font-size="10">Fallback: DHS Web Scraping</text>
+
+    <!-- Service 2: Matching & Calculation -->
+    <rect x="270" y="42" width="225" height="125" rx="8" fill="#0f172a" stroke="#334155"/>
+    <text x="283" y="68" fill="#a78bfa" font-size="13" font-weight="700">Kurikulum Matching Engine</text>
+    <text x="283" y="90" fill="#e2e8f0" font-size="11">• MK Retake (Nilai Terbaik)</text>
+    <text x="283" y="108" fill="#e2e8f0" font-size="11">• Deteksi MK Kosong</text>
+    <text x="283" y="126" fill="#e2e8f0" font-size="11">• Hitung Total SKS &amp; IPK</text>
+    <text x="283" y="144" fill="#e2e8f0" font-size="11">• Lookup Predikat Kelulusan</text>
+
+    <!-- Service 3: Excel Generator -->
+    <rect x="515" y="42" width="225" height="125" rx="8" fill="#0f172a" stroke="#334155"/>
+    <text x="528" y="68" fill="#34d399" font-size="13" font-weight="700">Excel Generator (openpyxl)</text>
+    <text x="528" y="90" fill="#e2e8f0" font-size="11">• Baca Template &amp; Cell Mapping</text>
+    <text x="528" y="108" fill="#e2e8f0" font-size="11">• Isi Nilai Hal 1 &amp; Hal 2</text>
+    <text x="528" y="126" fill="#e2e8f0" font-size="11">• Single Download (.xlsx)</text>
+    <text x="528" y="144" fill="#e2e8f0" font-size="11">• Batch Packaging (.zip)</text>
+
+    <!-- Service 4: Yudisium Bot -->
+    <rect x="760" y="42" width="215" height="125" rx="8" fill="#0f172a" stroke="#f59e0b" stroke-width="1.2"/>
+    <text x="773" y="68" fill="#fbbf24" font-size="13" font-weight="700">eCampuz Yudisium Bot</text>
+    <text x="773" y="90" fill="#e2e8f0" font-size="11">• Playwright Sequential Bot</text>
+    <text x="773" y="108" fill="#e2e8f0" font-size="11">• Guard Frasa &amp; Limit 50</text>
+    <text x="773" y="126" fill="#e2e8f0" font-size="11">• Pause on Manual CAPTCHA</text>
+    <text x="773" y="144" fill="#e2e8f0" font-size="11">• Template XLS &amp; Validator</text>
+  </g>
+
+  <!-- LAYER 4: DATABASE & EXTERNAL SYSTEMS -->
+  <g transform="translate(30, 575)">
+    <rect width="1000" height="150" rx="12" fill="#1e293b" stroke="#10b981" stroke-width="1.2" filter="url(#shadowGlow)"/>
+    <text x="25" y="28" fill="#34d399" font-size="13" font-weight="700">LAYER 4: DATABASE, STORAGE &amp; EXTERNAL INTEGRATION</text>
+
+    <!-- DB SQLite -->
+    <rect x="25" y="42" width="225" height="92" rx="8" fill="#0f172a" stroke="#334155"/>
+    <text x="38" y="68" fill="#38bdf8" font-size="12" font-weight="700">Database SQLite (db.sqlite3)</text>
+    <text x="38" y="88" fill="#94a3b8" font-size="10">• Master Kurikulum &amp; Mata Kuliah</text>
+    <text x="38" y="104" fill="#94a3b8" font-size="10">• Template, Cell Mapping, Predikat</text>
+    <text x="38" y="120" fill="#94a3b8" font-size="10">• Riwayat Generate &amp; Batch Jobs</text>
+
+    <!-- File Storage Media -->
+    <rect x="270" y="42" width="225" height="92" rx="8" fill="#0f172a" stroke="#334155"/>
+    <text x="283" y="68" fill="#e2e8f0" font-size="12" font-weight="700">Local Media &amp; State</text>
+    <text x="283" y="88" fill="#94a3b8" font-size="10">• File Excel Template Transkrip</text>
+    <text x="283" y="104" fill="#94a3b8" font-size="10">• Checkpoint Yudisium (.json)</text>
+    <text x="283" y="120" fill="#94a3b8" font-size="10">• Log Eksekusi (.csv)</text>
+
+    <!-- External 1: Neo Feeder -->
+    <rect x="515" y="42" width="225" height="92" rx="8" fill="#0f172a" stroke="#38bdf8" stroke-width="1.2"/>
+    <text x="528" y="68" fill="#38bdf8" font-size="12" font-weight="700">Neo Feeder PDDIKTI</text>
+    <text x="528" y="88" fill="#e2e8f0" font-size="10">Web Service WS Live2 (:3003)</text>
+    <text x="528" y="104" fill="#94a3b8" font-size="10">Read-Only Biodata &amp; Nilai</text>
+    <text x="528" y="120" fill="#34d399" font-size="10">Status: Terintegrasi API</text>
+
+    <!-- External 2: eCampuz -->
+    <rect x="760" y="42" width="215" height="92" rx="8" fill="#0f172a" stroke="#10b981" stroke-width="1.2"/>
+    <text x="773" y="68" fill="#34d399" font-size="12" font-weight="700">Portal eCampuz Kampus</text>
+    <text x="773" y="88" fill="#e2e8f0" font-size="10">Modul Kelulusan / Yudisium</text>
+    <text x="773" y="104" fill="#94a3b8" font-size="10">Otomasi via Playwright Browser</text>
+    <text x="773" y="120" fill="#fbbf24" font-size="10">Import Data Kelulusan (.xls)</text>
+  </g>
+
+  <!-- Connectors -->
+  <path d="M 530 215 L 530 235" fill="none" stroke="#60a5fa" stroke-width="2" marker-end="url(#arrowHead)"/>
+  <path d="M 530 350 L 530 370" fill="none" stroke="#c084fc" stroke-width="2" marker-end="url(#arrowHeadPurple)"/>
+  <path d="M 530 555 L 530 575" fill="none" stroke="#34d399" stroke-width="2" marker-end="url(#arrowHeadGreen)"/>
+</svg>

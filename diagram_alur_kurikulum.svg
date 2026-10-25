@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 640" width="100%" height="100%" style="background:#0f172a; font-family:system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, sans-serif;">
+  <defs>
+    <linearGradient id="kuriGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#ec4899"/>
+    </linearGradient>
+    <filter id="boxShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000000" flood-opacity="0.4"/>
+    </filter>
+    <marker id="arrowP" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 8 5 L 0 9 z" fill="#c084fc"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <rect x="30" y="25" width="940" height="60" rx="12" fill="#1e293b" stroke="#334155" stroke-width="1.5" filter="url(#boxShadow)"/>
+  <rect x="30" y="25" width="940" height="4" rx="2" fill="url(#kuriGrad)"/>
+  <text x="50" y="62" fill="#ffffff" font-size="19" font-weight="700">DIAGRAM ALUR: MANAJEMEN MASTER KURIKULUM &amp; TEMPLATE EXCEL</text>
+  <text x="770" y="60" fill="#94a3b8" font-size="12">Super Admin Workflow</text>
+
+  <!-- Step 1: Upload Template -->
+  <g transform="translate(30, 110)">
+    <rect width="280" height="360" rx="12" fill="#1e293b" stroke="#3b82f6" stroke-width="1.5" filter="url(#boxShadow)"/>
+    <text x="20" y="32" fill="#60a5fa" font-size="13" font-weight="700">TAHAP 1</text>
+    <text x="20" y="54" fill="#ffffff" font-size="16" font-weight="700">Setup Template Excel</text>
+
+    <rect x="15" y="75" width="250" height="75" rx="8" fill="#0f172a" stroke="#334155"/>
+    <text x="25" y="100" fill="#e2e8f0" font-size="12" font-weight="600">Unggah Berkas Template</text>
+    <text x="25" y="120" fill="#94a3b8" font-size="11">File .xlsx desain resmi transkrip</text>
+    <text x="25" y="136" fill="#94a3b8" font-size="11">(Desain format ijazah &amp; logo)</text>
+
+    <rect x="15" y="165" width="250" height="85" rx="8" fill="#0f172a" stroke="#334155"/>
+    <text x="25" y="190" fill="#e2e8f0" font-size="12" font-weight="600">Konfigurasi Kapasitas Baris</text>
+    <text x="25" y="210" fill="#94a3b8" font-size="11">• Total Kapasitas MK (misal 50)</text>
+    <text x="25" y="226" fill="#94a3b8" font-size="11">• Batas Baris MK Halaman 1</text>
+    <text x="25" y="242" fill="#94a3b8" font-size="11">• Sisanya otomatis ke Halaman 2</text>
+
+    <rect x="15" y="265" width="250" height="75" rx="8" fill="#0f172a" stroke="#3b82f6"/>
+    <text x="25" y="290" fill="#60a5fa" font-size="12" font-weight="600">Cell Mapping JSON</text>
+    <text x="25" y="310" fill="#94a3b8" font-size="11">Mapping sel: "nama":"B5",</text>
+    <text x="25" y="326" fill="#94a3b8" font-size="11">"nim":"B6", "ipk":"G50", dst.</text>
+  </g>
+
+  <!-- Step 2: Upload Excel Kurikulum -->
+  <g transform="translate(360, 110)">
+    <rect width="280" height="360" rx="12" fill="#1e293b" stroke="#8b5cf6" stroke-width="1.5" filter="url(#boxShadow)"/>
+    <text x="20" y="32" fill="#c084fc" font-size="13" font-weight="700">TAHAP 2</text>
+    <text x="20" y="54" fill="#ffffff" font-size="16" font-weight="700">Upload Excel Kurikulum</text>
+
+    <rect x="15" y="75" width="250" height="75" rx="8" fill="#0f172a" stroke="#334155"/>
+    <text x="25" y="100" fill="#e2e8f0" font-size="12" font-weight="600">Form Admin Kurikulum</text>
+    <text x="25" y="120" fill="#94a3b8" font-size="11">Pilih Jenjang (D3/S1/Profesi),</text>
+    <text x="25" y="136" fill="#94a3b8" font-size="11">Program Studi, &amp; Tahun Angkatan</text>
+
+    <rect x="15" y="165" width="250" height="85" rx="8" fill="#0f172a" stroke="#334155"/>
+    <text x="25" y="190" fill="#e2e8f0" font-size="12" font-weight="600">Mesin Auto-Parser Excel</text>
+    <text x="25" y="210" fill="#94a3b8" font-size="11">• Deteksi otomatis header kolom</text>
+    <text x="25" y="226" fill="#94a3b8" font-size="11">• Ekstrak Kode MK, Nama, &amp; SKS</text>
+    <text x="25" y="242" fill="#94a3b8" font-size="11">• Kolom di luar itu diabaikan</text>
+
+    <rect x="15" y="265" width="250" height="75" rx="8" fill="#0f172a" stroke="#8b5cf6"/>
+    <text x="25" y="290" fill="#c084fc" font-size="12" font-weight="600">Auto-Sort Alfabetis A-Z</text>
+    <text x="25" y="310" fill="#94a3b8" font-size="11">Mata kuliah otomatis diurutkan</text>
+    <text x="25" y="326" fill="#94a3b8" font-size="11">alfabetis berdasarkan nama MK</text>
+  </g>
+
+  <!-- Step 3: Atur Predikat & Data Pendukung -->
+  <g transform="translate(690, 110)">
+    <rect width="280" height="360" rx="12" fill="#1e293b" stroke="#ec4899" stroke-width="1.5" filter="url(#boxShadow)"/>
+    <text x="20" y="32" fill="#f472b6" font-size="13" font-weight="700">TAHAP 3</text>
+    <text x="20" y="54" fill="#ffffff" font-size="16" font-weight="700">Aturan Predikat &amp; Data</text>
+
+    <rect x="15" y="75" width="250" height="75" rx="8" fill="#0f172a" stroke="#334155"/>
+    <text x="25" y="100" fill="#e2e8f0" font-size="12" font-weight="600">Hubungkan ke Template</text>
+    <text x="25" y="120" fill="#94a3b8" font-size="11">Set ForeignKey Kurikulum &rarr;</text>
+    <text x="25" y="136" fill="#94a3b8" font-size="11">Template Excel yang sesuai</text>
+
+    <rect x="15" y="165" width="250" height="85" rx="8" fill="#0f172a" stroke="#334155"/>
+    <text x="25" y="190" fill="#e2e8f0" font-size="12" font-weight="600">Tabel Predikat Kelulusan</text>
+    <text x="25" y="210" fill="#94a3b8" font-size="11">Tentukan rentang tahun lulus,</text>
+    <text x="25" y="226" fill="#94a3b8" font-size="11">IPK Min - Max, serta nama</text>
+    <text x="25" y="242" fill="#94a3b8" font-size="11">predikat (Pujian / Sangat Memuaskan)</text>
+
+    <rect x="15" y="265" width="250" height="75" rx="8" fill="#0f172a" stroke="#ec4899"/>
+    <text x="25" y="290" fill="#f472b6" font-size="12" font-weight="600">Data Pendukung (Per NIM)</text>
+    <text x="25" y="310" fill="#94a3b8" font-size="11">Input judul skripsi/TA, nomor</text>
+    <text x="25" y="326" fill="#94a3b8" font-size="11">ijazah, &amp; nama dekan penandatangan</text>
+  </g>
+
+  <!-- Connective Arrows -->
+  <path d="M 310 290 L 360 290" fill="none" stroke="#c084fc" stroke-width="2.5" marker-end="url(#arrowP)"/>
+  <path d="M 640 290 L 690 290" fill="none" stroke="#ec4899" stroke-width="2.5" marker-end="url(#arrowP)"/>
+
+  <!-- Footer Info -->
+  <g transform="translate(30, 495)">
+    <rect width="940" height="110" rx="12" fill="#1e293b" stroke="#334155" stroke-width="1.5" filter="url(#boxShadow)"/>
+    <text x="25" y="30" fill="#f8fafc" font-size="13" font-weight="700">KEUNGGULAN MANAJEMEN KURIKULUM:</text>
+    <text x="25" y="58" fill="#94a3b8" font-size="11">• Operator tidak perlu mengetik mata kuliah satu per satu; cukup upload file Excel kurikulum kampus.</text>
+    <text x="25" y="78" fill="#94a3b8" font-size="11">• Sistem secara otomatis menormalkan huruf besar/kecil, spasi, dan menghitung total beban SKS kurikulum.</text>
+    <text x="25" y="98" fill="#94a3b8" font-size="11">• Transkrip otomatis menyesuaikan template dan aturan predikat sesuai tahun kelulusan mahasiswa.</text>
+  </g>
+</svg>
