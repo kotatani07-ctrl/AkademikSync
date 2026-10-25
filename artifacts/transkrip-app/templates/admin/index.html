@@ -1,5 +1,5 @@
 {% extends "admin/base_site.html" %}
-{% load i18n static %}
+{% load i18n static log %}
 
 {% block title %}Dashboard — Transkrip &amp; Ijazah Admin{% endblock %}
 {% block bodyclass %}{{ block.super }} dashboard{% endblock %}
@@ -7,190 +7,143 @@
 {% block extrastyle %}
 {{ block.super }}
 <style>
-  .admin-index-grid { display: grid; grid-template-columns: 1fr 320px; gap: 20px; align-items: start; }
-  @media (max-width: 900px) {
-    .admin-index-grid { grid-template-columns: 1fr !important; }
+  /* Ensure dashboard fills the container without Django's default 600px desktop lock */
+  .dashboard #content {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 24px 32px !important;
+    box-sizing: border-box !important;
+    float: none !important;
   }
-  /* Quick links bar wraps on mobile */
-  @media (max-width: 540px) {
-    .admin-index-grid > div:last-child { position: static !important; }
+  .dashboard .titles-and-tools {
+    display: none !important;
+  }
+  .dashboard .main > .content {
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: 1 1 auto !important;
+  }
+
+  /* High-contrast styling for primary button */
+  .btn-open-app {
+    background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%) !important;
+    color: #ffffff !important;
+    border: 1px solid rgba(255, 255, 255, 0.25) !important;
+    box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35) !important;
+  }
+  .btn-open-app:hover {
+    background: linear-gradient(135deg, #4338ca 0%, #4f46e5 100%) !important;
+    color: #ffffff !important;
+    box-shadow: 0 6px 20px rgba(79, 70, 229, 0.45) !important;
+    transform: translateY(-1px) !important;
+  }
+  .btn-open-app,
+  .btn-open-app *,
+  .btn-open-app span,
+  .btn-open-app svg {
+    color: #ffffff !important;
+    stroke: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
   }
 </style>
 {% endblock %}
 
+{% block content_title %}{% endblock %}
 {% block breadcrumbs %}{% endblock %}
 
 {% block content %}
-<div style="max-width:1100px;">
+<div class="w-full max-w-7xl mx-auto">
 
-  <!-- Page heading -->
-  <div style="margin-bottom:28px;">
-    <h1 style="
-      font-size:1.7rem;
-      font-weight:700;
-      letter-spacing:-0.04em;
-      color:#1e1b4b;
-      margin:0 0 4px;
-      line-height:1.2;
-    ">
-      Panel Administrasi
-    </h1>
-    <p style="font-size:0.875rem;color:#9ca3af;margin:0;font-weight:400;">
-      Kelola data master, kurikulum, dan template transkrip
-    </p>
+  <!-- Hero Header Banner -->
+  <div class="relative overflow-hidden rounded-2xl bg-white/80 backdrop-blur-xl border border-white/90 p-6 md:p-8 shadow-xl shadow-indigo-500/5 mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+    <div class="flex-1 min-w-[280px]">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/60 mb-3">
+        <span class="w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-emerald-400/30 animate-pulse"></span>
+        Sistem Manajemen Transkrip &amp; Ijazah
+      </div>
+      <h1 class="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight leading-tight m-0 mb-2">
+        Panel Administrasi
+      </h1>
+      <p class="text-sm text-slate-500 max-w-2xl m-0 leading-relaxed">
+        Kelola data master kurikulum, mata kuliah, template Excel, predikat kelulusan, dan riwayat cetak dokumen transkrip secara terpadu.
+      </p>
+    </div>
+
+    <div class="flex items-center gap-3 flex-wrap">
+      <a href="/" class="btn-open-app inline-flex items-center justify-center gap-2.5 px-5 py-2.5 rounded-xl font-bold text-sm shadow-md transition-all duration-200 no-underline cursor-pointer" style="color: #ffffff !important; background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%) !important;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: #ffffff !important;"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        <span style="color: #ffffff !important; font-weight: 700;">Buka Aplikasi Transkrip</span>
+      </a>
+      <a href="{% url 'admin:password_change' %}" class="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-white text-slate-700 font-semibold text-sm border border-slate-300 shadow-sm hover:border-indigo-400 hover:text-indigo-600 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 no-underline" style="color: #334155 !important;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2.3" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <span style="color: #334155 !important; font-weight: 600;">Ganti Password</span>
+      </a>
+    </div>
   </div>
 
-  <!-- Quick links bar -->
-  <div style="
-    display:flex;gap:10px;flex-wrap:wrap;
-    margin-bottom:28px;
-  ">
-    <a href="/" style="
-      display:inline-flex;align-items:center;gap:7px;
-      padding:9px 18px;
-      background:rgba(255,255,255,0.75);
-      backdrop-filter:blur(16px);
-      border:1px solid rgba(255,255,255,0.8);
-      border-radius:10px;
-      font-size:0.84rem;font-weight:600;
-      color:#6366f1;
-      text-decoration:none;
-      box-shadow:0 2px 8px rgba(99,102,241,0.07);
-      transition:all 0.18s ease;
-    " onmouseover="this.style.boxShadow='0 4px 16px rgba(99,102,241,0.14)';this.style.transform='translateY(-1px)'"
-       onmouseout="this.style.boxShadow='0 2px 8px rgba(99,102,241,0.07)';this.style.transform='translateY(0)'">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-      Buka Aplikasi
-    </a>
-    <a href="{% url 'admin:password_change' %}" style="
-      display:inline-flex;align-items:center;gap:7px;
-      padding:9px 18px;
-      background:rgba(255,255,255,0.75);
-      backdrop-filter:blur(16px);
-      border:1px solid rgba(255,255,255,0.8);
-      border-radius:10px;
-      font-size:0.84rem;font-weight:600;
-      color:#6b7280;
-      text-decoration:none;
-      box-shadow:0 2px 8px rgba(0,0,0,0.04);
-      transition:all 0.18s ease;
-    " onmouseover="this.style.color='#6366f1';this.style.transform='translateY(-1px)'"
-       onmouseout="this.style.color='#6b7280';this.style.transform='translateY(0)'">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-      Ganti Password
-    </a>
-  </div>
+  <!-- Main Grid Layout: Apps (Left 8 cols) + Sidebar (Right 4 cols) -->
+  <div class="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start w-full">
 
-  <div class="admin-index-grid">
-
-    <!-- Main: App list -->
-    <div>
+    <!-- Left Column: Installed Apps & Models -->
+    <div class="xl:col-span-8 flex flex-col gap-6">
       {% if app_list %}
         {% for app in app_list %}
-        <div style="
-          background:rgba(255,255,255,0.72);
-          backdrop-filter:blur(20px) saturate(180%);
-          -webkit-backdrop-filter:blur(20px) saturate(180%);
-          border:1px solid rgba(255,255,255,0.82);
-          border-radius:20px;
-          box-shadow:0 8px 32px rgba(99,102,241,0.07),0 2px 8px rgba(255,255,255,0.85) inset;
-          overflow:hidden;
-          margin-bottom:16px;
-        ">
-          <!-- App header -->
-          <div style="
-            padding:16px 22px 14px;
-            border-bottom:1px solid rgba(209,213,219,0.3);
-            display:flex;align-items:center;gap:10px;
-          ">
-            <div style="
-              width:28px;height:28px;
-              background:linear-gradient(135deg,#6366f1 0%,#8b5cf6 100%);
-              border-radius:8px;
-              display:flex;align-items:center;justify-content:center;
-              flex-shrink:0;
-            ">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-            </div>
-            <div>
-              <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:#9ca3af;">Modul</div>
-              <div style="font-size:1rem;font-weight:700;color:#1e1b4b;letter-spacing:-0.02em;line-height:1.1;">
-                {{ app.name }}
+        <div class="rounded-2xl bg-white/80 backdrop-blur-xl border border-white/90 shadow-lg shadow-indigo-500/5 overflow-hidden transition-all duration-200">
+          <!-- Module Header -->
+          <div class="px-6 py-4 border-b border-slate-200/60 bg-white/50 flex items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+              <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/25 flex-shrink-0">
+                {% if app.app_label == 'auth' %}
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                {% else %}
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                {% endif %}
+              </div>
+              <div>
+                <div class="text-[0.68rem] font-bold uppercase tracking-wider text-slate-400 leading-tight mb-0.5">Modul Aplikasi</div>
+                <h2 class="text-base font-bold text-slate-900 tracking-tight m-0 leading-tight">{{ app.name }}</h2>
               </div>
             </div>
-            {% if app.app_url %}
-            <a href="{{ app.app_url }}" style="
-              margin-left:auto;
-              font-size:0.78rem;font-weight:600;
-              color:#6366f1;text-decoration:none;
-              padding:5px 12px;
-              background:rgba(99,102,241,0.08);
-              border-radius:7px;
-              transition:background 0.15s;
-            " onmouseover="this.style.background='rgba(99,102,241,0.15)'"
-               onmouseout="this.style.background='rgba(99,102,241,0.08)'">
-              Lihat semua →
-            </a>
-            {% endif %}
+
+            <div class="flex items-center gap-2.5">
+              <span class="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-slate-100 text-slate-600 border border-slate-200/80">
+                {{ app.models|length }} Model
+              </span>
+              {% if app.app_url %}
+              <a href="{{ app.app_url }}" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-indigo-600 bg-indigo-50/80 hover:bg-indigo-100/90 transition-colors no-underline">
+                Lihat Semua
+                <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+              </a>
+              {% endif %}
+            </div>
           </div>
 
-          <!-- Models list -->
-          <div style="padding:8px 12px 12px;">
+          <!-- Models Responsive Grid -->
+          <div class="p-4 sm:p-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
             {% for model in app.models %}
-            <div style="
-              display:flex;align-items:center;justify-content:space-between;
-              padding:10px 10px;
-              border-radius:12px;
-              transition:background 0.15s;
-            " onmouseover="this.style.background='rgba(99,102,241,0.05)'"
-               onmouseout="this.style.background='transparent'">
-              <div style="display:flex;align-items:center;gap:10px;">
-                <div style="
-                  width:6px;height:6px;
-                  background:linear-gradient(135deg,#6366f1,#8b5cf6);
-                  border-radius:50%;
-                  flex-shrink:0;
-                "></div>
+            <div class="group flex items-center justify-between p-3.5 rounded-xl bg-white/70 hover:bg-white/95 border border-slate-200/60 hover:border-indigo-200 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
+              <div class="flex items-center gap-2.5 min-w-0 mr-3">
+                <span class="w-2 h-2 rounded-full bg-indigo-500 group-hover:scale-125 transition-transform flex-shrink-0"></span>
                 {% if model.admin_url %}
-                <a href="{{ model.admin_url }}" style="
-                  font-size:0.9rem;font-weight:600;
-                  color:#1e1b4b;text-decoration:none;
-                  letter-spacing:-0.01em;
-                " onmouseover="this.style.color='#6366f1'"
-                   onmouseout="this.style.color='#1e1b4b'">
+                <a href="{{ model.admin_url }}" class="text-sm font-semibold text-slate-800 group-hover:text-indigo-600 truncate no-underline transition-colors">
                   {{ model.name }}
                 </a>
                 {% else %}
-                <span style="font-size:0.9rem;font-weight:600;color:#9ca3af;">{{ model.name }}</span>
+                <span class="text-sm font-semibold text-slate-400 truncate">{{ model.name }}</span>
                 {% endif %}
               </div>
-              <div style="display:flex;align-items:center;gap:8px;">
+
+              <div class="flex items-center gap-1.5 flex-shrink-0">
                 {% if model.add_url %}
-                <a href="{{ model.add_url }}" style="
-                  display:inline-flex;align-items:center;gap:5px;
-                  font-size:0.76rem;font-weight:600;
-                  color:#6366f1;text-decoration:none;
-                  padding:4px 10px;
-                  background:rgba(99,102,241,0.08);
-                  border-radius:7px;
-                  transition:all 0.15s;
-                " onmouseover="this.style.background='rgba(99,102,241,0.15)'"
-                   onmouseout="this.style.background='rgba(99,102,241,0.08)'">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <a href="{{ model.add_url }}" class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors no-underline" title="Tambah {{ model.name }}">
+                  <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                   Tambah
                 </a>
                 {% endif %}
                 {% if model.admin_url %}
-                <a href="{{ model.admin_url }}" style="
-                  display:inline-flex;align-items:center;gap:4px;
-                  font-size:0.76rem;font-weight:500;
-                  color:#9ca3af;text-decoration:none;
-                  padding:4px 10px;
-                  border-radius:7px;
-                  transition:color 0.15s;
-                " onmouseover="this.style.color='#6366f1'"
-                   onmouseout="this.style.color='#9ca3af'">
+                <a href="{{ model.admin_url }}" class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors no-underline" title="Lihat daftar {{ model.name }}">
                   Lihat
+                  <svg class="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><polyline points="9 18 15 12 9 6"/></svg>
                 </a>
                 {% endif %}
               </div>
@@ -199,117 +152,149 @@
           </div>
         </div>
         {% endfor %}
-
       {% else %}
-        <div style="
-          background:rgba(255,255,255,0.72);
-          backdrop-filter:blur(20px);
-          border:1px solid rgba(255,255,255,0.82);
-          border-radius:20px;
-          padding:40px;
-          text-align:center;
-          color:#9ca3af;
-          font-size:0.875rem;
-        ">
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto 12px;display:block;opacity:0.3;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          Tidak ada model yang tersedia atau Anda tidak memiliki izin.
+        <div class="rounded-2xl bg-white/80 backdrop-blur-xl border border-white/90 p-12 text-center text-slate-400">
+          <svg class="w-10 h-10 mx-auto mb-3 opacity-40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <p class="text-sm m-0">Tidak ada model yang tersedia atau Anda tidak memiliki izin akses.</p>
         </div>
       {% endif %}
     </div>
 
-    <!-- Sidebar: Recent Actions -->
-    <div>
-      {% if recent_actions %}
-      <div style="
-        background:rgba(255,255,255,0.72);
-        backdrop-filter:blur(20px) saturate(180%);
-        -webkit-backdrop-filter:blur(20px) saturate(180%);
-        border:1px solid rgba(255,255,255,0.82);
-        border-radius:20px;
-        box-shadow:0 8px 32px rgba(99,102,241,0.07);
-        overflow:hidden;
-        position:sticky;top:80px;
-      ">
-        <div style="
-          padding:15px 18px 13px;
-          border-bottom:1px solid rgba(209,213,219,0.3);
-          display:flex;align-items:center;gap:8px;
-        ">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-          <span style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:#9ca3af;">
-            Aksi Terakhir
-          </span>
+    <!-- Right Column: Sidebar (Quick Links, Activity Log, System Info) -->
+    <div class="xl:col-span-4 flex flex-col gap-6">
+
+      <!-- Card: Quick Access / Shortcuts -->
+      <div class="rounded-2xl bg-white/80 backdrop-blur-xl border border-white/90 shadow-lg shadow-indigo-500/5 overflow-hidden">
+        <div class="px-5 py-3.5 border-b border-slate-200/60 bg-white/50 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-700">
+          <svg class="w-4 h-4 text-indigo-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          Pintasan Cepat
         </div>
-        <div style="padding:6px 0;">
-          {% for entry in recent_actions %}
-          <div style="
-            padding:10px 18px;
-            border-bottom:1px solid rgba(243,244,246,0.8);
-            transition:background 0.15s;
-          " onmouseover="this.style.background='rgba(99,102,241,0.04)'"
-             onmouseout="this.style.background='transparent'">
-            <div style="display:flex;align-items:flex-start;gap:8px;">
-              <!-- Action icon -->
+        <div class="p-3 flex flex-col gap-1.5">
+          <a href="/admin/core/template/" class="group flex items-center gap-3 p-2.5 rounded-xl hover:bg-indigo-50/60 transition-all duration-200 no-underline">
+            <div class="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-xs font-bold text-slate-800 group-hover:text-indigo-600 transition-colors">Template Dokumen</div>
+              <div class="text-[0.7rem] text-slate-400 truncate">Atur template Excel &amp; ijazah</div>
+            </div>
+            <svg class="w-3.5 h-3.5 text-slate-300 group-hover:text-indigo-600 group-hover:translate-x-0.5 transition-all" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+          </a>
+
+          <a href="/admin/core/kurikulum/" class="group flex items-center gap-3 p-2.5 rounded-xl hover:bg-emerald-50/60 transition-all duration-200 no-underline">
+            <div class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-xs font-bold text-slate-800 group-hover:text-emerald-600 transition-colors">Kurikulum &amp; MK</div>
+              <div class="text-[0.7rem] text-slate-400 truncate">Data master kurikulum prodi</div>
+            </div>
+            <svg class="w-3.5 h-3.5 text-slate-300 group-hover:text-emerald-600 group-hover:translate-x-0.5 transition-all" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+          </a>
+
+          <a href="/admin/core/riwayatgenerate/" class="group flex items-center gap-3 p-2.5 rounded-xl hover:bg-purple-50/60 transition-all duration-200 no-underline">
+            <div class="w-8 h-8 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-xs font-bold text-slate-800 group-hover:text-purple-600 transition-colors">Riwayat Generate</div>
+              <div class="text-[0.7rem] text-slate-400 truncate">Log hasil cetak transkrip</div>
+            </div>
+            <svg class="w-3.5 h-3.5 text-slate-300 group-hover:text-purple-600 group-hover:translate-x-0.5 transition-all" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+          </a>
+
+          <a href="/admin/core/predikatkelulusan/" class="group flex items-center gap-3 p-2.5 rounded-xl hover:bg-amber-50/60 transition-all duration-200 no-underline">
+            <div class="w-8 h-8 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-xs font-bold text-slate-800 group-hover:text-amber-600 transition-colors">Predikat Kelulusan</div>
+              <div class="text-[0.7rem] text-slate-400 truncate">Rentang IPK &amp; predikat</div>
+            </div>
+            <svg class="w-3.5 h-3.5 text-slate-300 group-hover:text-amber-600 group-hover:translate-x-0.5 transition-all" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+          </a>
+        </div>
+      </div>
+
+      <!-- Card: Recent Admin Activity -->
+      <div class="rounded-2xl bg-white/80 backdrop-blur-xl border border-white/90 shadow-lg shadow-indigo-500/5 overflow-hidden">
+        <div class="px-5 py-3.5 border-b border-slate-200/60 bg-white/50 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-700">
+          <svg class="w-4 h-4 text-indigo-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Aktivitas Terakhir
+        </div>
+        <div class="divide-y divide-slate-100">
+          {% get_admin_log 8 as admin_log for_user user %}
+          {% if admin_log %}
+            {% for entry in admin_log %}
+            <div class="p-3.5 flex items-start gap-3 hover:bg-slate-50/70 transition-colors">
               {% if entry.is_addition %}
-              <div style="
-                width:20px;height:20px;flex-shrink:0;
-                background:rgba(16,185,129,0.12);
-                border-radius:6px;
-                display:flex;align-items:center;justify-content:center;
-                margin-top:1px;
-              ">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="3"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <div class="w-5 h-5 rounded-md bg-emerald-100 text-emerald-600 flex items-center justify-center flex-shrink-0 mt-0.5" title="Ditambahkan">
+                <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               </div>
               {% elif entry.is_change %}
-              <div style="
-                width:20px;height:20px;flex-shrink:0;
-                background:rgba(245,158,11,0.12);
-                border-radius:6px;
-                display:flex;align-items:center;justify-content:center;
-                margin-top:1px;
-              ">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              <div class="w-5 h-5 rounded-md bg-amber-100 text-amber-600 flex items-center justify-center flex-shrink-0 mt-0.5" title="Diubah">
+                <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
               </div>
               {% elif entry.is_deletion %}
-              <div style="
-                width:20px;height:20px;flex-shrink:0;
-                background:rgba(239,68,68,0.10);
-                border-radius:6px;
-                display:flex;align-items:center;justify-content:center;
-                margin-top:1px;
-              ">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+              <div class="w-5 h-5 rounded-md bg-rose-100 text-rose-600 flex items-center justify-center flex-shrink-0 mt-0.5" title="Dihapus">
+                <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
               </div>
               {% endif %}
 
-              <div style="flex:1;min-width:0;">
+              <div class="flex-1 min-w-0">
                 {% if entry.is_deletion or not entry.get_admin_url %}
-                <div style="font-size:0.84rem;font-weight:600;color:#1e1b4b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                  {{ entry.object_repr }}
-                </div>
+                <div class="text-xs font-semibold text-slate-800 truncate">{{ entry.object_repr }}</div>
                 {% else %}
-                <a href="{{ entry.get_admin_url }}" style="
-                  font-size:0.84rem;font-weight:600;
-                  color:#1e1b4b;text-decoration:none;
-                  display:block;
-                  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-                " onmouseover="this.style.color='#6366f1'"
-                   onmouseout="this.style.color='#1e1b4b'">
+                <a href="{{ entry.get_admin_url }}" class="text-xs font-semibold text-slate-800 hover:text-indigo-600 truncate block no-underline transition-colors">
                   {{ entry.object_repr }}
                 </a>
                 {% endif %}
-                <div style="font-size:0.74rem;color:#9ca3af;margin-top:1px;">
-                  {% if entry.content_type %}{{ entry.content_type.name|capfirst }}{% endif %}
+                <div class="text-[0.7rem] text-slate-400 mt-0.5">
+                  {% if entry.content_type %}{{ entry.content_type.name|capfirst }}{% else %}Item{% endif %}
+                  &bull; {{ entry.action_time|timesince }} yang lalu
                 </div>
               </div>
             </div>
-          </div>
-          {% endfor %}
+            {% endfor %}
+          {% else %}
+            <div class="p-6 text-center text-slate-400">
+              <svg class="w-6 h-6 mx-auto mb-2 opacity-40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <p class="text-xs m-0">Belum ada riwayat aktivitas terbaru.</p>
+            </div>
+          {% endif %}
         </div>
       </div>
-      {% endif %}
+
+      <!-- Card: System Information -->
+      <div class="rounded-2xl bg-white/80 backdrop-blur-xl border border-white/90 shadow-lg shadow-indigo-500/5 overflow-hidden">
+        <div class="px-5 py-3.5 border-b border-slate-200/60 bg-white/50 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-700">
+          <svg class="w-4 h-4 text-indigo-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          Status &amp; Informasi Sistem
+        </div>
+        <div class="p-4 flex flex-col gap-2.5 text-xs">
+          <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+            <span class="text-slate-500 font-medium">Status Layanan</span>
+            <span class="inline-flex items-center gap-1.5 font-bold text-slate-800">
+              <span class="w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-emerald-400/30"></span>
+              Aktif &amp; Siap
+            </span>
+          </div>
+          <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+            <span class="text-slate-500 font-medium">Zona Waktu</span>
+            <span class="font-bold text-slate-800">Asia/Jakarta (WIB)</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-slate-500 font-medium">Mode Hak Akses</span>
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[0.68rem] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/60">
+              {% if user.is_superuser %}Superuser (Penuh){% else %}Staff Terbatas{% endif %}
+            </span>
+          </div>
+        </div>
+      </div>
+
     </div>
 
   </div>
+
 </div>
 {% endblock %}

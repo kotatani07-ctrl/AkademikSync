@@ -58,8 +58,25 @@
 {{ block.super }}
 {# Load Tailwind CDN for utilities #}
 <script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          brand: {
+            50: '#eef2ff',
+            100: '#e0e7ff',
+            500: '#6366f1',
+            600: '#4f46e5',
+            700: '#4338ca',
+          }
+        }
+      }
+    }
+  }
+</script>
 {# Glass Admin CSS #}
-<link rel="stylesheet" href="{% static 'admin/css/glass-admin.css' %}">
+<link rel="stylesheet" href="{% static 'admin/css/glass-admin.css' %}?v=20261025-6">
 <style>
   /* Override dark mode vars injected by Django */
   :root, [data-theme="light"], [data-theme="dark"] {
@@ -97,6 +114,89 @@
   [data-theme="dark"] {
     --body-bg: #f0f2ff !important;
     --body-fg: #1e1b4b !important;
+  }
+
+  /* Top-right header user tools and action buttons */
+  #user-tools {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    font-size: 0.8rem !important;
+  }
+  .admin-user-badge {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    padding: 5px 12px !important;
+    background: rgba(255, 255, 255, 0.7) !important;
+    border: 1px solid rgba(229, 231, 235, 0.9) !important;
+    border-radius: 9999px !important;
+    font-size: 0.76rem !important;
+    color: #4b5563 !important;
+    backdrop-filter: blur(8px) !important;
+  }
+  .admin-header-actions {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+  }
+  .admin-hdr-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 5px !important;
+    height: 32px !important;
+    padding: 0 12px !important;
+    border-radius: 8px !important;
+    font-size: 0.76rem !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    text-decoration: none !important;
+    transition: all 0.18s ease !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+  }
+  .admin-hdr-btn-primary {
+    background: rgba(99, 102, 241, 0.1) !important;
+    color: #4f46e5 !important;
+    border: 1px solid rgba(99, 102, 241, 0.3) !important;
+  }
+  .admin-hdr-btn-primary:hover {
+    background: #6366f1 !important;
+    color: #ffffff !important;
+    border-color: #6366f1 !important;
+    box-shadow: 0 3px 10px rgba(99, 102, 241, 0.3) !important;
+    transform: translateY(-1px) !important;
+  }
+  .admin-hdr-btn-primary:hover svg {
+    stroke: #ffffff !important;
+  }
+  .admin-hdr-btn-secondary {
+    background: #ffffff !important;
+    color: #374151 !important;
+    border: 1px solid rgba(209, 213, 219, 0.85) !important;
+  }
+  .admin-hdr-btn-secondary:hover {
+    background: #f9fafb !important;
+    color: #1e1b4b !important;
+    border-color: #9ca3af !important;
+    transform: translateY(-1px) !important;
+  }
+  .admin-hdr-btn-danger {
+    background: rgba(239, 68, 68, 0.08) !important;
+    color: #dc2626 !important;
+    border: 1px solid rgba(239, 68, 68, 0.25) !important;
+  }
+  .admin-hdr-btn-danger:hover {
+    background: #ef4444 !important;
+    color: #ffffff !important;
+    border-color: #ef4444 !important;
+    box-shadow: 0 3px 10px rgba(239, 68, 68, 0.3) !important;
+    transform: translateY(-1px) !important;
+  }
+  .admin-hdr-btn-danger:hover svg {
+    stroke: #ffffff !important;
   }
 </style>
 {% endblock %}
@@ -245,15 +345,37 @@
 </script>
 {% endblock %}
 
-{% block userlinks %}
-  {% if site_url %}
-    <a href="{{ site_url }}">{% trans 'Lihat Situs' %}</a> /
-  {% endif %}
-  {% if user.has_usable_password %}
-    <a href="{% url 'admin:password_change' %}">{% trans 'Ganti Sandi' %}</a> /
-  {% endif %}
-  <form id="logout-form" method="post" action="{% url 'admin:logout' %}" style="display:inline;">
-    {% csrf_token %}
-    <button type="submit" style="background:none;border:none;padding:0;cursor:pointer;color:inherit;font:inherit;">{% trans 'Keluar' %}</button>
-  </form>
+{% block welcome-msg %}
+  <span class="admin-user-badge">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2.3" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    <span style="color:#6b7280;">Halo,</span>
+    <strong style="color:#1e1b4b;font-weight:700;">{% firstof user.get_short_name user.get_username %}</strong>
+  </span>
 {% endblock %}
+
+{% block userlinks %}
+  <div class="admin-header-actions">
+    {% if site_url %}
+    <a href="{{ site_url }}" class="admin-hdr-btn admin-hdr-btn-primary" title="Buka aplikasi website utama">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2.3" stroke-linecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+      <span>Lihat Situs</span>
+    </a>
+    {% endif %}
+
+    {% if user.has_usable_password %}
+    <a href="{% url 'admin:password_change' %}" class="admin-hdr-btn admin-hdr-btn-secondary" title="Ganti kata sandi akun">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4b5563" stroke-width="2.3" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      <span>Ganti Sandi</span>
+    </a>
+    {% endif %}
+
+    <form id="logout-form" method="post" action="{% url 'admin:logout' %}" style="display:inline;margin:0;">
+      {% csrf_token %}
+      <button type="submit" class="admin-hdr-btn admin-hdr-btn-danger" title="Keluar dari sesi administrasi">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2.3" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        <span>Keluar</span>
+      </button>
+    </form>
+  </div>
+{% endblock %}
+

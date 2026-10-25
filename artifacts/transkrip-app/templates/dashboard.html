@@ -2,6 +2,48 @@
 {% block title %}Dashboard — AkademikSync{% endblock %}
 {% block page_title %}Dashboard{% endblock %}
 
+{% block extra_head %}
+<style>
+  .stat-card-btn {
+    transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+    border: 1px solid var(--line, #e2e8f0);
+    position: relative;
+    text-decoration: none !important;
+  }
+  .stat-card-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 24px rgba(26, 82, 118, 0.12);
+    border-color: rgba(46, 134, 193, 0.5);
+    background: #fbfdff;
+  }
+  .stat-card-btn .stat-arrow {
+    transition: all 0.2s ease;
+    opacity: 0.45;
+    color: #64748b;
+  }
+  .stat-card-btn:hover .stat-arrow {
+    opacity: 1;
+    transform: translateX(4px);
+    color: var(--accent, #2e86c1) !important;
+  }
+  .stat-card-btn .stat-link-hint {
+    font-size: 0.73rem;
+    font-weight: 600;
+    margin-top: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    color: var(--accent, #2e86c1);
+    opacity: 0.85;
+  }
+  .stat-card-btn:hover .stat-link-hint {
+    opacity: 1;
+    text-decoration: underline;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 <!-- Status bar koneksi Feeder (dicek nyata setiap 60 detik) -->
 {% if feeder_ok %}
@@ -16,40 +58,60 @@
 </div>
 {% endif %}
 
-<!-- Stat cards -->
+<!-- Stat cards (Klik untuk membuka halaman terkait) -->
 <div class="row g-3 mb-4">
   <div class="col-12 col-sm-6 col-lg-4">
-    <div class="stat-card d-flex align-items-center gap-3">
-      <div class="stat-icon" style="background:#dbeafe;">
-        <i class="bi bi-journal-bookmark-fill text-primary"></i>
+    <a href="{% url 'admin:core_kurikulum_changelist' %}" class="stat-card stat-card-btn d-flex align-items-center justify-content-between text-decoration-none">
+      <div class="d-flex align-items-center gap-3">
+        <div class="stat-icon" style="background:#dbeafe;">
+          <i class="bi bi-journal-bookmark-fill text-primary"></i>
+        </div>
+        <div>
+          <div style="font-size:1.6rem;font-weight:700;line-height:1;color:var(--text, #1e1b4b);">{{ total_kurikulum }}</div>
+          <div class="text-muted small">Kurikulum Terdaftar</div>
+          <div class="stat-link-hint">Kelola Kurikulum &rarr;</div>
+        </div>
       </div>
-      <div>
-        <div style="font-size:1.6rem;font-weight:700;line-height:1;">{{ total_kurikulum }}</div>
-        <div class="text-muted small">Kurikulum Terdaftar</div>
+      <div class="stat-arrow ps-2">
+        <i class="bi bi-chevron-right fs-5"></i>
       </div>
-    </div>
+    </a>
   </div>
+
   <div class="col-12 col-sm-6 col-lg-4">
-    <div class="stat-card d-flex align-items-center gap-3">
-      <div class="stat-icon" style="background:#dcfce7;">
-        <i class="bi bi-file-earmark-spreadsheet-fill" style="color:#16a34a"></i>
+    <a href="{% url 'admin:core_template_changelist' %}" class="stat-card stat-card-btn d-flex align-items-center justify-content-between text-decoration-none">
+      <div class="d-flex align-items-center gap-3">
+        <div class="stat-icon" style="background:#dcfce7;">
+          <i class="bi bi-file-earmark-spreadsheet-fill" style="color:#16a34a"></i>
+        </div>
+        <div>
+          <div style="font-size:1.6rem;font-weight:700;line-height:1;color:var(--text, #1e1b4b);">{{ total_template }}</div>
+          <div class="text-muted small">Template Excel</div>
+          <div class="stat-link-hint" style="color:#16a34a;">Kelola Template &rarr;</div>
+        </div>
       </div>
-      <div>
-        <div style="font-size:1.6rem;font-weight:700;line-height:1;">{{ total_template }}</div>
-        <div class="text-muted small">Template Excel</div>
+      <div class="stat-arrow ps-2">
+        <i class="bi bi-chevron-right fs-5"></i>
       </div>
-    </div>
+    </a>
   </div>
+
   <div class="col-12 col-sm-6 col-lg-4">
-    <div class="stat-card d-flex align-items-center gap-3">
-      <div class="stat-icon" style="background:#fef3c7;">
-        <i class="bi bi-clock-history" style="color:#d97706"></i>
+    <a href="{% url 'riwayat' %}" class="stat-card stat-card-btn d-flex align-items-center justify-content-between text-decoration-none">
+      <div class="d-flex align-items-center gap-3">
+        <div class="stat-icon" style="background:#fef3c7;">
+          <i class="bi bi-clock-history" style="color:#d97706"></i>
+        </div>
+        <div>
+          <div style="font-size:1.6rem;font-weight:700;line-height:1;color:var(--text, #1e1b4b);">{{ total_riwayat }}</div>
+          <div class="text-muted small">Total Generate</div>
+          <div class="stat-link-hint" style="color:#d97706;">Lihat Riwayat &rarr;</div>
+        </div>
       </div>
-      <div>
-        <div style="font-size:1.6rem;font-weight:700;line-height:1;">{{ total_riwayat }}</div>
-        <div class="text-muted small">Total Generate</div>
+      <div class="stat-arrow ps-2">
+        <i class="bi bi-chevron-right fs-5"></i>
       </div>
-    </div>
+    </a>
   </div>
 </div>
 

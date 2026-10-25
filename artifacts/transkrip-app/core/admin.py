@@ -8,6 +8,7 @@ from django.db import transaction
 from django.shortcuts import redirect, render
 from django.urls import path
 from django.utils.html import format_html
+from django.utils.safestring import mark_safe
 
 from .models import (
     BatchJob,
@@ -146,7 +147,7 @@ class KurikulumAdmin(admin.ModelAdmin):
     def prodi_display(self, obj):
         if obj.prodi:
             return format_html('<span style="font-weight:600;color:#1e1b4b;">{}</span>', obj.get_prodi_display())
-        return format_html('<span style="color:#9ca3af;font-style:italic;">(Umum / Semua Prodi)</span>')
+        return mark_safe('<span style="color:#9ca3af;font-style:italic;">(Umum / Semua Prodi)</span>')
 
     @admin.display(description="Template Excel", ordering='template__nama')
     def template_link(self, obj):
@@ -155,7 +156,7 @@ class KurikulumAdmin(admin.ModelAdmin):
                 '<a href="/admin/core/template/{}/change/" style="font-weight:600;color:#6366f1;text-decoration:none;">📄 {}</a>',
                 obj.template.pk, obj.template.nama
             )
-        return format_html('<span style="color:#9ca3af;">- Belum Ditentukan -</span>')
+        return mark_safe('<span style="color:#9ca3af;">- Belum Ditentukan -</span>')
 
     @admin.display(description="Jumlah MK")
     def jumlah_mk_badge(self, obj):
@@ -278,7 +279,7 @@ class TemplateAdmin(admin.ModelAdmin):
                 '</a>',
                 obj.file_excel.url
             )
-        return format_html('<span style="color:#9ca3af;">-</span>')
+        return mark_safe('<span style="color:#9ca3af;">-</span>')
 
     @admin.display(description="Dibuat", ordering='created_at')
     def created_at_formatted(self, obj):
@@ -324,9 +325,11 @@ class PredikatKelulusanAdmin(admin.ModelAdmin):
 
     @admin.display(description="Rentang IPK")
     def rentang_ipk(self, obj):
+        val_min = f"{float(obj.ipk_min):.2f}"
+        val_max = f"{float(obj.ipk_max):.2f}"
         return format_html(
-            '<span style="display:inline-block;padding:2px 8px;border-radius:6px;background:rgba(99,102,241,0.08);color:#4338ca;font-weight:600;font-size:0.8rem;">{:.2f} &ndash; {:.2f}</span>',
-            float(obj.ipk_min), float(obj.ipk_max)
+            '<span style="display:inline-block;padding:2px 8px;border-radius:6px;background:rgba(99,102,241,0.08);color:#4338ca;font-weight:600;font-size:0.8rem;">{} &ndash; {}</span>',
+            val_min, val_max
         )
 
     @admin.display(description="Tahun Kelulusan")
@@ -349,14 +352,14 @@ class DataPendukungAdmin(admin.ModelAdmin):
     def no_ijazah_badge(self, obj):
         if obj.no_ijazah:
             return format_html('<span style="font-weight:500;color:#374151;">{}</span>', obj.no_ijazah)
-        return format_html('<span style="color:#9ca3af;font-style:italic;">Belum Ada</span>')
+        return mark_safe('<span style="color:#9ca3af;font-style:italic;">Belum Ada</span>')
 
     @admin.display(description="Judul Skripsi")
     def judul_skripsi_singkat(self, obj):
         if obj.judul_skripsi:
             text = obj.judul_skripsi[:80] + '...' if len(obj.judul_skripsi) > 80 else obj.judul_skripsi
             return format_html('<span title="{}">{}</span>', obj.judul_skripsi, text)
-        return format_html('<span style="color:#9ca3af;">-</span>')
+        return mark_safe('<span style="color:#9ca3af;">-</span>')
 
 
 @admin.register(RiwayatGenerate)
@@ -395,20 +398,20 @@ class RiwayatGenerateAdmin(admin.ModelAdmin):
     @admin.display(description="Mode", ordering='mode')
     def mode_badge(self, obj):
         if obj.mode == 'single':
-            return format_html(
+            return mark_safe(
                 '<span style="display:inline-block;padding:2px 8px;border-radius:9999px;background:rgba(14,165,233,0.1);color:#0369a1;border:1px solid rgba(14,165,233,0.22);font-size:0.72rem;font-weight:600;">Single</span>'
             )
-        return format_html(
+        return mark_safe(
             '<span style="display:inline-block;padding:2px 8px;border-radius:9999px;background:rgba(139,92,246,0.1);color:#6d28d9;border:1px solid rgba(139,92,246,0.22);font-size:0.72rem;font-weight:600;">Batch</span>'
         )
 
     @admin.display(description="Status", ordering='status')
     def status_badge(self, obj):
         if obj.status == 'success':
-            return format_html(
+            return mark_safe(
                 '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:9999px;background:rgba(16,185,129,0.12);color:#15803d;border:1px solid rgba(16,185,129,0.25);font-size:0.72rem;font-weight:700;">✓ Berhasil</span>'
             )
-        return format_html(
+        return mark_safe(
             '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:9999px;background:rgba(239,68,68,0.12);color:#b91c1c;border:1px solid rgba(239,68,68,0.25);font-size:0.72rem;font-weight:700;">✕ Gagal</span>'
         )
 
@@ -422,8 +425,8 @@ class RiwayatGenerateAdmin(admin.ModelAdmin):
         if obj.jumlah_mk_tidak_dikenali > 0:
             badges.append(f'<span style="display:inline-block;padding:1px 6px;border-radius:4px;background:#f3f4f6;color:#4b5563;font-size:0.7rem;font-weight:600;">{obj.jumlah_mk_tidak_dikenali} Asing</span>')
         if not badges:
-            return format_html('<span style="color:#9ca3af;font-size:0.75rem;">Normal</span>')
-        return format_html(' '.join(badges))
+            return mark_safe('<span style="color:#9ca3af;font-size:0.75rem;">Normal</span>')
+        return mark_safe(' '.join(badges))
 
     @admin.display(description="Waktu Generate", ordering='generated_at')
     def waktu_generate(self, obj):

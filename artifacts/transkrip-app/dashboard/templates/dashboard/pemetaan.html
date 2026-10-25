@@ -8,38 +8,167 @@
   </div>
 </div>
 
+<style>
+  .stat-card-link {
+    display: block;
+    cursor: pointer;
+    text-decoration: none !important;
+    position: relative;
+    transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1.5px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+    padding: 16px 18px;
+    box-shadow: var(--shadow);
+  }
+  .stat-card-link:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 28px rgba(17, 54, 85, 0.16);
+    border-color: var(--brand-2);
+    text-decoration: none !important;
+  }
+  .stat-card-link .card-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .stat-card-link .label {
+    color: var(--muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 700;
+  }
+  .stat-card-link .num {
+    font-size: 28px;
+    font-weight: 800;
+    margin: 4px 0 2px;
+    line-height: 1.1;
+  }
+  .stat-card-link .sub {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.3;
+  }
+  .stat-card-link .click-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11.5px;
+    font-weight: 600;
+    margin-top: 8px;
+    color: var(--brand-2);
+    opacity: 0.85;
+    transition: opacity 0.2s, transform 0.2s;
+  }
+  .stat-card-link:hover .click-hint {
+    opacity: 1;
+    transform: translateX(3px);
+  }
+  
+  /* Active states for each card */
+  .stat-card-link.active-total {
+    border-color: var(--brand-2) !important;
+    background: linear-gradient(180deg, #ffffff 0%, rgba(46, 134, 193, 0.07) 100%) !important;
+    box-shadow: 0 0 0 2px rgba(46, 134, 193, 0.25), 0 8px 24px rgba(17, 54, 85, 0.12) !important;
+  }
+  .stat-card-link.active-exact {
+    border-color: var(--ok) !important;
+    background: linear-gradient(180deg, #ffffff 0%, rgba(22, 163, 74, 0.07) 100%) !important;
+    box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.25), 0 8px 24px rgba(17, 54, 85, 0.12) !important;
+  }
+  .stat-card-link.active-rec {
+    border-color: #8b5cf6 !important;
+    background: linear-gradient(180deg, #ffffff 0%, rgba(139, 92, 246, 0.07) 100%) !important;
+    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.25), 0 8px 24px rgba(17, 54, 85, 0.12) !important;
+  }
+  .stat-card-link.active-skip {
+    border-color: #ef4444 !important;
+    background: linear-gradient(180deg, #ffffff 0%, rgba(239, 68, 68, 0.07) 100%) !important;
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.25), 0 8px 24px rgba(17, 54, 85, 0.12) !important;
+  }
+
+  .stat-active-badge {
+    display: inline-block;
+    padding: 2px 7px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    border-radius: 999px;
+    letter-spacing: 0.04em;
+  }
+  .stat-card-link.active-total .stat-active-badge { background: #e0f2fe; color: #0369a1; }
+  .stat-card-link.active-exact .stat-active-badge { background: #dcfce7; color: #15803d; }
+  .stat-card-link.active-rec .stat-active-badge { background: #f3e8ff; color: #6b21a8; }
+  .stat-card-link.active-skip .stat-active-badge { background: #fee2e2; color: #b91c1c; }
+</style>
+
 <div class="cards" style="margin-bottom: 20px;">
-  <div class="card">
-    <div class="label">Total MK DHS</div>
-    <div class="num">{{ counts.total }}</div>
+  <!-- Card 1: Total -->
+  <a href="{% url 'dashboard:pemetaan' %}?kelompok=all" 
+     class="card stat-card-link {% if group == 'all' %}active-total{% endif %}"
+     title="Klik untuk menampilkan semua {{ counts.total }} mata kuliah">
+    <div class="card-header-row">
+      <div class="label">Total MK DHS</div>
+      {% if group == 'all' %}
+      <span class="stat-active-badge">Aktif</span>
+      {% endif %}
+    </div>
+    <div class="num" style="color: var(--ink);">{{ counts.total }}</div>
     <div class="sub">Mata kuliah dari eCampuz</div>
-  </div>
-  <div class="card">
-    <div class="label">Cocok Persis (Exact)</div>
+    <div class="click-hint">Lihat Semua &rarr;</div>
+  </a>
+
+  <!-- Card 2: Exact -->
+  <a href="{% url 'dashboard:pemetaan' %}?kelompok=APPROVED-EXACT" 
+     class="card stat-card-link {% if group == 'APPROVED-EXACT' %}active-exact{% endif %}"
+     title="Klik untuk memfilter {{ counts.exact }} mata kuliah cocok persis">
+    <div class="card-header-row">
+      <div class="label" style="color: var(--ok);">Cocok Persis (Exact)</div>
+      {% if group == 'APPROVED-EXACT' %}
+      <span class="stat-active-badge">Aktif</span>
+      {% endif %}
+    </div>
     <div class="num" style="color: var(--ok);">{{ counts.exact }}</div>
     <div class="sub">Nama MK sama persis</div>
-  </div>
-  <div class="card">
-    <div class="label">Rekomendasi Padanan</div>
-    <div class="num" style="color: var(--brand-2);">{{ counts.rec }}</div>
+    <div class="click-hint" style="color: var(--ok);">Tampilkan Exact &rarr;</div>
+  </a>
+
+  <!-- Card 3: Rekomendasi Padanan -->
+  <a href="{% url 'dashboard:pemetaan' %}?kelompok=APPROVED-REC" 
+     class="card stat-card-link {% if group == 'APPROVED-REC' %}active-rec{% endif %}"
+     title="Klik untuk memfilter {{ counts.rec }} mata kuliah rekomendasi padanan">
+    <div class="card-header-row">
+      <div class="label" style="color: #7c3aed;">Rekomendasi Padanan</div>
+      {% if group == 'APPROVED-REC' %}
+      <span class="stat-active-badge">Aktif</span>
+      {% endif %}
+    </div>
+    <div class="num" style="color: #7c3aed;">{{ counts.rec }}</div>
     <div class="sub">Dipetakan ke kurikulum baru</div>
-  </div>
-  <div class="card">
-    <div class="label">Dilewati (Skip)</div>
-    <div class="num" style="color: var(--muted);">{{ counts.skip }}</div>
+    <div class="click-hint" style="color: #7c3aed;">Tampilkan Rekomendasi &rarr;</div>
+  </a>
+
+  <!-- Card 4: Dilewati (Skip) -->
+  <a href="{% url 'dashboard:pemetaan' %}?kelompok=SKIP" 
+     class="card stat-card-link {% if group == 'SKIP' %}active-skip{% endif %}"
+     title="Klik untuk memfilter {{ counts.skip }} mata kuliah dilewati">
+    <div class="card-header-row">
+      <div class="label" style="color: var(--bad);">Dilewati (Skip)</div>
+      {% if group == 'SKIP' %}
+      <span class="stat-active-badge">Aktif</span>
+      {% endif %}
+    </div>
+    <div class="num" style="color: var(--bad);">{{ counts.skip }}</div>
     <div class="sub">Ambigu / di luar kurikulum</div>
-  </div>
+    <div class="click-hint" style="color: var(--bad);">Tampilkan Skip &rarr;</div>
+  </a>
 </div>
 
-<div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
-  <div class="filter-row" style="margin: 0;">
-    <a class="btn ghost {% if group == 'all' %}active{% endif %}" href="{% url 'dashboard:pemetaan' %}?kelompok=all">Semua ({{ counts.total }})</a>
-    <a class="btn ghost {% if group == 'APPROVED-EXACT' %}active{% endif %}" href="{% url 'dashboard:pemetaan' %}?kelompok=APPROVED-EXACT">Exact ({{ counts.exact }})</a>
-    <a class="btn ghost {% if group == 'APPROVED-REC' %}active{% endif %}" href="{% url 'dashboard:pemetaan' %}?kelompok=APPROVED-REC">Rekomendasi ({{ counts.rec }})</a>
-    <a class="btn ghost {% if group == 'SKIP' %}active{% endif %}" href="{% url 'dashboard:pemetaan' %}?kelompok=SKIP">Skip ({{ counts.skip }})</a>
-  </div>
-  <div>
-    <input type="text" id="pemetaanSearch" placeholder="Cari kode atau nama MK..." style="padding: 7px 14px; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; width: 280px; outline: none; background: #fff;" />
+<div style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 16px;">
+  <div style="position: relative;">
+    <input type="text" id="pemetaanSearch" placeholder="Cari kode atau nama MK..." style="padding: 8px 14px 8px 34px; border: 1.5px solid var(--line); border-radius: 10px; font-size: 13px; width: 300px; outline: none; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.04); transition: border-color 0.2s;" onfocus="this.style.borderColor='var(--brand-2)';" onblur="this.style.borderColor='var(--line)';" />
+    <i class="bi bi-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 13px;"></i>
   </div>
 </div>
 
