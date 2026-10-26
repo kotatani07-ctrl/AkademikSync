@@ -20,7 +20,12 @@ from urllib.parse import urljoin
 from ecampuz.audit import load_config
 from ecampuz.client import eCampuzClient, SessionExpired
 from ecampuz.credentials import CredentialStore, _hide
-from ecampuz.yudisium_browser import _ensure_same_origin, read_records, run_yudisium
+from ecampuz.yudisium_browser import (
+    _ensure_same_origin,
+    _parse_registration_date,
+    read_records,
+    run_yudisium,
+)
 
 import dashboard.services.data as d
 
@@ -46,9 +51,14 @@ YUDI_JOB_STATE = {
     "log_file": None,
 }
 YUDI_JOB_EVENT = threading.Event()
+YUDI_JOB_CANCEL = threading.Event()
+# True selama thread browser yudisium masih hidup. Status running bisa sudah
+# di-reset oleh tombol batal, tetapi worker lama tidak boleh bertabrakan dengan
+# batch baru.
+YUDI_JOB_ACTIVE = False
 YUDI_UPLOAD_DIR = d.STATE_DIR / "yudisium_uploads"
 YUDI_UPLOADS: dict[str, dict] = {}
-YUDI_MAX_BATCH = 50
+YUDI_MAX_BATCH = 100
 YUDI_MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 
 GRADE_CLASS = {
@@ -437,9 +447,12 @@ def _append_yudisium_log(message: str) -> None:
 
 
 def _start_yudisium_job(params: dict) -> bool:
+    global YUDI_JOB_ACTIVE
     with JOB_LOCK:
-        if JOB_STATE["running"] or YUDI_JOB_STATE["running"]:
+        if JOB_STATE["running"] or YUDI_JOB_STATE["running"] or YUDI_JOB_ACTIVE:
             return False
+        YUDI_JOB_CANCEL.clear()
+        YUDI_JOB_ACTIVE = True
         YUDI_JOB_STATE.update(
             running=True,
             awaiting_manual_login=False,
@@ -452,30 +465,82 @@ def _start_yudisium_job(params: dict) -> bool:
             log_file=params["log_file"],
         )
         YUDI_JOB_EVENT.clear()
-    thread = threading.Thread(target=_run_yudisium_job, args=(params,), daemon=True)
-    thread.start()
+    try:
+        thread = threading.Thread(target=_run_yudisium_job, args=(params,), daemon=True)
+        thread.start()
+    except Exception:
+        with JOB_LOCK:
+            YUDI_JOB_ACTIVE = False
+            YUDI_JOB_STATE.update(
+                running=False,
+                message="Gagal menjalankan worker browser",
+            )
+        raise
     return True
 
 
+def abort_yudisium_job() -> bool:
+    """Minta worker yudisium berhenti; status running ditutup oleh worker.
+
+    Jangan menandai worker sudah mati hanya karena tombol batal ditekan:
+    Playwright bisa masih menyelesaikan satu operasi. Menutup status terlalu
+    cepat memungkinkan batch baru berjalan bersamaan dengan browser lama.
+    """
+    with JOB_LOCK:
+        YUDI_JOB_CANCEL.set()
+        YUDI_JOB_EVENT.set()
+        was_running = YUDI_JOB_STATE["running"] or YUDI_JOB_STATE["awaiting_manual_login"]
+        if was_running:
+            YUDI_JOB_STATE.update(
+                awaiting_manual_login=False,
+                message="Menghentikan worker browser...",
+                error="Permintaan batal diterima; menunggu worker browser berhenti.",
+                rc=1,
+            )
+            YUDI_JOB_STATE["log"].append(
+                "[web] Permintaan batal diterima; menunggu worker browser berhenti."
+            )
+        else:
+            YUDI_JOB_STATE.update(
+                running=False,
+                awaiting_manual_login=False,
+                message="Tidak ada batch yang berjalan",
+                finished=_iso(),
+                rc=1,
+                error="Tidak ada batch yudisium yang sedang berjalan.",
+            )
+            YUDI_JOB_STATE["log"].append(
+                "[web] Permintaan reset diterima; tidak ada worker yudisium aktif."
+            )
+    return was_running
+
+
 def _run_yudisium_job(params: dict) -> None:
-    uploaded_path = Path(params["file_path"])
+    global YUDI_JOB_ACTIVE
+    uploaded_path: Path | None = None
 
     def log(message: str) -> None:
         _append_yudisium_log(message)
 
     def pause_for_manual_login(page) -> None:
         with JOB_LOCK:
+            if YUDI_JOB_CANCEL.is_set():
+                return
             YUDI_JOB_STATE["awaiting_manual_login"] = True
             YUDI_JOB_STATE["message"] = "Login dan CAPTCHA manual diperlukan"
             YUDI_JOB_EVENT.clear()
         log("[web] Browser menunggu login/CAPTCHA manual. Setelah login, buka halaman Tambah - Mahasiswa Lain lalu tekan tombol lanjut di halaman web.")
         YUDI_JOB_EVENT.wait()
+        if YUDI_JOB_CANCEL.is_set():
+            log("[web] Dibatalkan saat menunggu login.")
+            return
         with JOB_LOCK:
             YUDI_JOB_STATE["awaiting_manual_login"] = False
             YUDI_JOB_STATE["message"] = "Melanjutkan proses"
         log("[web] Melanjutkan setelah intervensi manual.")
 
     try:
+        uploaded_path = Path(params["file_path"])
         cfg = load_config()
         args = SimpleNamespace(
             inspect=False,
@@ -484,6 +549,7 @@ def _run_yudisium_job(params: dict) -> None:
             sheet=params.get("sheet") or None,
             url=params["url"],
             campaign_id=params.get("campaign_id") or None,
+            registration_date=params.get("registration_date") or None,
             limit=params["limit"],
             submit=True,
             retry_failed=bool(params.get("retry_failed", False)),
@@ -494,26 +560,36 @@ def _run_yudisium_job(params: dict) -> None:
             delay=params.get("delay", 3.0),
             timeout=60,
             confirmed=True,
+            non_interactive=True,
             pause_for_manual_login=pause_for_manual_login,
+            cancel_check=YUDI_JOB_CANCEL.is_set,
             on_log=log,
         )
         log(f"[web] Memulai batch {params['limit']} NIM dari roster {uploaded_path.name}.")
         result = run_yudisium(args, cfg)
         with JOB_LOCK:
-            YUDI_JOB_STATE["rc"] = result
-            YUDI_JOB_STATE["message"] = "Selesai" if result == 0 else "Berhenti dengan status non-sukses"
+            if not YUDI_JOB_CANCEL.is_set():
+                YUDI_JOB_STATE["rc"] = result
+                YUDI_JOB_STATE["message"] = "Selesai" if result == 0 else "Berhenti dengan status non-sukses"
     except Exception as exc:  # noqa: BLE001
         log(f"[web] Error: {exc}")
         with JOB_LOCK:
-            YUDI_JOB_STATE["rc"] = 1
-            YUDI_JOB_STATE["error"] = str(exc)
-            YUDI_JOB_STATE["message"] = "Gagal"
+            if not YUDI_JOB_CANCEL.is_set():
+                YUDI_JOB_STATE["rc"] = 1
+                YUDI_JOB_STATE["error"] = str(exc)
+                YUDI_JOB_STATE["message"] = "Gagal"
     finally:
-        uploaded_path.unlink(missing_ok=True)
-        with JOB_LOCK:
-            YUDI_JOB_STATE["running"] = False
-            YUDI_JOB_STATE["awaiting_manual_login"] = False
-            YUDI_JOB_STATE["finished"] = _iso()
+        try:
+            if uploaded_path is not None:
+                uploaded_path.unlink(missing_ok=True)
+        finally:
+            with JOB_LOCK:
+                YUDI_JOB_ACTIVE = False
+                if YUDI_JOB_CANCEL.is_set():
+                    YUDI_JOB_STATE["message"] = "Dibatalkan oleh operator"
+                YUDI_JOB_STATE["running"] = False
+                YUDI_JOB_STATE["awaiting_manual_login"] = False
+                YUDI_JOB_STATE["finished"] = _iso()
 
 
 def _yudisium_snapshot() -> dict:
@@ -560,16 +636,14 @@ def make_yudisium_params(uploaded: dict, payload: dict) -> dict:
     if "/kelulusan/" not in target_url.casefold():
         raise ValueError("URL harus menuju halaman modul kelulusan eCampuz.")
 
-    credentials = CredentialStore(cfg.credential_path).load()
-    if not credentials:
-        raise RuntimeError(
-            "Kredensial DPAPI belum tersedia. Jalankan login-browser sekali "
-            "(isi CAPTCHA manual), lalu ulangi."
-        )
+    # Sesi eCampuz akan diambil langsung dari cookies session.json atau login manual di browser bot.
 
     campaign = str(payload.get("campaign_id", "")).strip()
     if not campaign:
         raise ValueError("ID periode/sesi yudisium wajib diisi untuk checkpoint.")
+    registration_date = str(payload.get("registration_date", "")).strip() or "31-03-2023"
+    if _parse_registration_date(registration_date) is None:
+        raise ValueError("Tanggal daftar wajib memakai format DD-MM-YYYY, mis. 31-03-2023.")
     campaign_hash = hashlib.sha256(str(campaign).encode("utf-8")).hexdigest()[:8]
     stem = secure_filename(Path(uploaded["filename"]).stem)[:50] or "roster"
     log_path = d.OUT_DIR / f"yudisium_{stem}_{campaign_hash}_log.csv"
@@ -588,6 +662,7 @@ def make_yudisium_params(uploaded: dict, payload: dict) -> dict:
         "limit": payload["limit"],
         "url": target_url,
         "campaign_id": campaign,
+        "registration_date": registration_date,
         "retry_failed": bool(payload.get("retry_failed", False)),
         "log_file": str(log_path),
         "state_file": str(state_path),

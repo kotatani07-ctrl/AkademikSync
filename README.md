@@ -162,8 +162,10 @@ Berikut adalah tahapan kerja pengguna berdasarkan peran masing-masing:
    - Setelah selesai, unduh arsip berkas transkrip berupa file `.zip`.
 4. **Pendaftaran Yudisium ke eCampuz**:
    - Masuk ke menu **Yudisium** (`/yudisium`).
-   - Unggah berkas roster mahasiswa lulus &rarr; Klik **Validasi & preview**.
-   - Masukkan URL modul kelulusan eCampuz aktif, batas batch (maks 50), dan ID sesi.
+   - Unduh template format roster resmi melalui tombol **Unduh template roster (.xlsx)** di Panel 1.
+   - Isi daftar NIM mahasiswa pada template tersebut (kolom `NIM` otomatis berformat teks agar angka 0 di depan aman).
+   - Unggah berkas roster mahasiswa &rarr; Klik **Validasi & preview**.
+   - Masukkan URL modul kelulusan eCampuz aktif, batas batch (maks 100), dan ID sesi. Jika token `act` sudah berubah setelah login ulang, bot akan mencari URL Tambah yang aktif dari menu Pendaftaran Yudisium.
    - Centang persetujuan kewenangan dan ketik frasa konfirmasi: `DAFTAR YUDISIUM <N>`.
    - Klik **Mulai pendaftaran**. Jika muncul instruksi login manual, isi CAPTCHA pada browser bot lalu klik **Saya sudah login, lanjutkan**.
    - Unduh laporan hasil pendaftaran berupa **CSV Log**.

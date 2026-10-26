@@ -119,12 +119,12 @@ sequenceDiagram
     UI-->>Admin: Menampilkan tabel preview mahasiswa
 
     Note over Admin,UI: Tahap 2: Konfigurasi & Guard Pengaman
-    Admin->>UI: Masukkan URL sesi eCampuz, ID periode, limit (maks 50), & jeda (detik)
+    Admin->>UI: Masukkan URL sesi eCampuz, ID periode, limit (maks 100), & jeda (detik)
     Admin->>UI: Centang pernyataan kewenangan admin
     Admin->>UI: Mengetik frasa teks: "DAFTAR YUDISIUM <limit>"
     Admin->>UI: Klik tombol "Mulai pendaftaran"
     UI->>Server: POST /dashboard/api/yudisium/start
-    Server->>Server: Cek keamanan: lokal request, kuota <= 50, kesesuaian frasa konfirmasi
+    Server->>Server: Cek keamanan: lokal request, kuota <= 100, kesesuaian frasa konfirmasi
     Server->>Bot: Luncurkan thread background baru (run_yudisium)
     Server-->>UI: Status "Batch yudisium dimulai"
 
@@ -190,13 +190,16 @@ Untuk menjamin keandalan data dan integritas portal kampus, sistem menerapkan se
 
 ---
 
-### B. Langkah 1: Upload & Verifikasi Roster
+### B. Langkah 1: Unduh Template, Isi, & Upload Roster
 1. Buka aplikasi web di browser Anda: `http://localhost:8080/yudisium` (atau klik menu **Yudisium** di dashboard).
 2. Pada panel **1. Roster mahasiswa**:
-   * Klik **Choose File** pada *File CSV / Excel* dan pilih file roster Anda.
-   * Masukkan nama header kolom NIM pada *Header kolom NIM* (default: `NIM`).
-   * *(Opsional)* Jika file Excel memiliki beberapa sheet, masukkan nama sheet pada *Sheet Excel*.
-3. Klik tombol **Validasi & preview**.
+   * Klik tombol **Unduh template roster (.xlsx)** di bagian kanan atas panel 1 untuk mendapatkan format resmi yang sudah diatur agar 100% kompatibel dengan bot.
+   * Buka file `Template_Roster_Pendaftaran_Yudisium.xlsx` tersebut, lalu masukkan daftar NIM mahasiswa yang akan didaftarkan (kolom `NIM` sudah terformat sebagai teks `@` agar angka nol di awal tidak hilang).
+   * Simpan file Excel tersebut.
+3. Unggah file kembali ke sistem:
+   * Klik **Choose File** pada *File CSV / Excel* dan pilih file roster yang sudah diisi.
+   * Pastikan nama kolom NIM terisi `NIM` (sesuai template).
+   * Klik tombol **Validasi & preview**.
 4. Panel **Preview roster** akan muncul di bawahnya. Periksa apakah daftar NIM yang ditampilkan sudah sesuai dengan data yang akan didaftarkan.
 
 ---
@@ -205,9 +208,10 @@ Untuk menjamin keandalan data dan integritas portal kampus, sistem menerapkan se
 Pada panel **2. Jalankan batch**, lengkapi parameter berikut:
 1. **URL halaman Tambah - Mahasiswa Lain**:
    * Buka portal eCampuz pada tab browser terpisah.
-   * Masuk ke modul *Kelulusan / Yudisium &rarr; Tambah &rarr; Mahasiswa Lain*.
-   * Salin URL lengkap pada bilah alamat browser, lalu tempel (*paste*) ke kolom input ini.
-2. **Maksimum NIM batch ini**: Masukkan jumlah mahasiswa yang akan didaftarkan pada batch ini (antara `1` s.d. `50`). Disarankan memulai dengan batch kecil (misal: `5` mahasiswa) untuk memastikan sesi berjalan lancar.
+   * Masuk ke modul *Kelulusan / Yudisium &rarr; Pendaftaran Yudisium*.
+   * Salin URL halaman **Tambah - Pilih Mahasiswa** (atau URL menu **Pendaftaran Yudisium**) pada bilah alamat browser, lalu tempel (*paste*) ke kolom input ini.
+   * Token `act` pada URL eCampuz dapat berubah setelah login ulang. Bot akan mencari ulang URL Tambah yang aktif dari menu **Pendaftaran Yudisium** bila URL lama hanya menampilkan menu; jadi gunakan URL dari sesi yang sedang aktif.
+2. **Maksimum NIM batch ini**: Masukkan jumlah mahasiswa yang akan didaftarkan pada batch ini (antara `1` s.d. `100`). Disarankan memulai dengan batch kecil (misal: `5` mahasiswa) untuk memastikan sesi berjalan lancar.
 3. **Jeda antar mahasiswa (detik)**: Waktu tunggu antar pendaftaran mahasiswa (standar: `3.0` detik).
 4. **ID periode/sesi yudisium**: Masukkan penanda sesi, misalnya: `Ganjil 2026/2027` atau `Periode Yudisium Oktober 2026`. ID ini digunakan untuk mencatat riwayat log.
 5. *(Opsional)* **Coba ulang baris berstatus Gagal**: Centang opsi ini jika Anda ingin mengulangi mahasiswa yang pada proses sebelumnya berstatus *Gagal*.
@@ -229,11 +233,12 @@ Pada panel **2. Jalankan batch**, lengkapi parameter berikut:
 3. Silakan ketik username, password, dan kode CAPTCHA langsung pada jendela browser tersebut sampai berhasil masuk.
 4. Setelah portal terbuka di halaman pendaftaran, kembali ke tab dashboard Transkrip lalu klik tombol:
    **"Saya sudah login, lanjutkan"**.
-5. Bot akan langsung melanjutkan pendaftaran sisa antrean mahasiswa secara otomatis.
+5. *(Opsi Pembatalan)* Jika ingin membatalkan proses pada tahap ini, klik tombol merah **"Batalkan batch"**. Bot akan menutup sesi dan mereset status sistem ke kondisi siap.
+6. Bot akan langsung melanjutkan pendaftaran sisa antrean mahasiswa secara otomatis.
 
 ---
 
-### F. Langkah 5: Memantau Log & Mengunduh Rekapitulasi
+### F. Langkah 5: Memantau Log, Batalkan/Reset, & Mengunduh Rekapitulasi
 1. Pantau jalannya proses pada panel **Status dan log**. Sistem akan menampilkan teks konsol baris demi baris:
    ```text
    [web] Memulai batch 10 NIM dari roster mahasiswa_lulus.xlsx.
@@ -241,8 +246,18 @@ Pada panel **2. Jalankan batch**, lengkapi parameter berikut:
    [2/10] SUKSES 202101002: Pendaftaran berhasil dikonfirmasi oleh halaman.
    ...
    ```
-2. Setelah seluruh mahasiswa selesai diproses, status badge akan berubah menjadi **Selesai**.
-3. Klik tombol **Unduh CSV log** yang muncul di pojok kanan panel log untuk mengunduh rekap hasil pendaftaran.
+2. **Tombol "Batalkan / Reset Job"**:
+   Jika di tengah proses pendaftaran bot terasa macet, koneksi portal terputus, atau Anda ingin mengganti file roster, klik tombol merah **"Batalkan / Reset Job"** pada header panel *Status dan log*. Sistem akan langsung menghentikan proses peramban dan mengembalikan tombol *Mulai pendaftaran* ke status aktif tanpa harus me-restart server.
+3. Setelah seluruh mahasiswa selesai diproses, status badge akan berubah menjadi **Selesai**.
+4. Klik tombol **Unduh CSV log** yang muncul di pojok kanan panel log untuk mengunduh rekap hasil pendaftaran.
+
+---
+
+### G. Fitur Penyimpanan Otomatis URL & Periode
+* Setiap kali batch dijalankan, URL halaman pendaftaran dan ID Periode akan otomatis disimpan ke konfigurasi server (`web.json`) dan `localStorage` peramban.
+* Saat Anda membuka kembali halaman Yudisium di sesi berikutnya, kolom URL dan ID Periode sudah langsung terisi (*auto-filled*).
+* URL eCampuz memakai token `act` yang dapat berubah setelah login ulang. Jangan menganggap URL yang terisi otomatis selalu masih valid: jika URL lama hanya membuka menu, bot akan mencari URL **Pendaftaran Yudisium &rarr; Tambah** yang aktif secara otomatis. Jika pencarian otomatis gagal, tempel URL dari sesi eCampuz yang sedang aktif.
+* Mahasiswa yang sudah terdaftar pada semester target akan dikenali dari menu **Pengelolaan Yudisium** dan dilewati dengan status `SUDAH ADA`, sehingga batch aman diulang tanpa membuat duplikat.
 
 ---
 

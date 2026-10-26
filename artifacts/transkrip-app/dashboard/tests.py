@@ -275,4 +275,94 @@ class LoginCaptchaFlowTest(SimpleTestCase):
         mock_req_new.assert_called_with("user1", "pass1")
 
 
+class YudisiumImportTemplateTest(SimpleTestCase):
+    def test_date_columns_are_text_cells(self):
+        import xlrd
+
+        from dashboard.services.yudisium_import import IMPORT_HEADER_ROW, build_graduation_template
+
+        content = build_graduation_template()
+        workbook = xlrd.open_workbook(file_contents=content, formatting_info=True)
+        sheet = workbook.sheet_by_name("Import data kelulusan")
+
+        for column in (5, 7, 10):
+            cell = sheet.cell(IMPORT_HEADER_ROW + 1, column)
+            cell_format = workbook.format_map[workbook.xf_list[cell.xf_index].format_key]
+            self.assertEqual("@", cell_format.format_str)
+
+    def test_validator_rejects_excel_date_cell(self):
+        import xlrd
+
+        from dashboard.services.yudisium_import import _valid_date
+
+        self.assertFalse(
+            _valid_date(44900, xlrd.XL_CELL_DATE, 0),
+            "Sel tanggal Excel harus ditolak; eCampuz meminta teks dd-mm-yyyy.",
+        )
+
+    def test_validator_rejects_slash_date_text(self):
+        import xlrd
+
+        from dashboard.services.yudisium_import import _valid_date
+
+        # eCampuz menolak teks dd/mm/yyyy; hanya dd-mm-yyyy yang diterima.
+        self.assertFalse(_valid_date("31/03/2023", xlrd.XL_CELL_TEXT, 0))
+        self.assertTrue(_valid_date("31-03-2023", xlrd.XL_CELL_TEXT, 0))
+
+    def _content_with_ijazah(self, ijazah: str) -> bytes:
+        import io
+
+        import xlwt
+
+        from dashboard.services.yudisium_import import IMPORT_HEADERS, IMPORT_SHEET_NAME
+
+        workbook = xlwt.Workbook(encoding="utf-8")
+        sheet = workbook.add_sheet(IMPORT_SHEET_NAME)
+        for column, header in enumerate(IMPORT_HEADERS):
+            sheet.write(6, column, header)
+        values = [
+            1,
+            "201940007",
+            "Adhellia Ika Saputri",
+            "Lulus",
+            "Genap 2022/2023",
+            "31-03-2023",
+            "ROY-RSL/III-23/SK-YUD/121-009",
+            "31-03-2023",
+            "Skripsi",
+            ijazah,
+            "31-03-2023",
+            "",
+        ]
+        text_style = xlwt.easyxf(num_format_str="@")
+        for column, value in enumerate(values):
+            if column in (1, 5, 7, 9, 10):
+                sheet.write(7, column, value, text_style)
+            else:
+                sheet.write(7, column, value)
+        buffer = io.BytesIO()
+        workbook.save(buffer)
+        return buffer.getvalue()
+
+    def test_accepts_pddikti_ijazah_number(self):
+        from dashboard.services.yudisium_import import validate_graduation_import
+
+        report = validate_graduation_import(
+            self._content_with_ijazah("041112142012026100038"), "import.xls"
+        )
+
+        self.assertTrue(report["valid"])
+
+    def test_rejects_letter_ijazah_placeholder(self):
+        from dashboard.services.yudisium_import import validate_graduation_import
+
+        report = validate_graduation_import(self._content_with_ijazah("A"), "import.xls")
+
+        self.assertFalse(report["valid"])
+        self.assertTrue(
+            any("nomor ijazah PDDIKTI" in error["message"] for error in report["errors"])
+        )
+
+
+from dashboard.test_yudisium_browser import YudisiumBrowserActionDisambiguationTest  # noqa: F401, E402
 

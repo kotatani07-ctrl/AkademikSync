@@ -37,6 +37,11 @@ urlpatterns = [
     # API yudisium
     path("api/yudisium/upload", views.api_yudisium_upload, name="api_yudisium_upload"),
     path(
+        "api/yudisium/template-roster.xlsx",
+        views.api_yudisium_roster_template,
+        name="api_yudisium_roster_template",
+    ),
+    path(
         "api/yudisium/template-kelulusan.xls",
         views.api_yudisium_template,
         name="api_yudisium_template",
@@ -49,6 +54,7 @@ urlpatterns = [
     path("api/input-nilai/preview", views.api_grade_entry_preview, name="api_grade_entry_preview"),
     path("api/yudisium/start", views.api_yudisium_start, name="api_yudisium_start"),
     path("api/yudisium/continue", views.api_yudisium_continue, name="api_yudisium_continue"),
+    path("api/yudisium/abort", views.api_yudisium_abort, name="api_yudisium_abort"),
     path("api/yudisium/status", views.api_yudisium_status, name="api_yudisium_status"),
     path("api/yudisium/log", views.api_yudisium_log, name="api_yudisium_log"),
 ]

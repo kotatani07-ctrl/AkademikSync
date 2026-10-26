@@ -308,21 +308,20 @@ def cmd_dhs(args) -> int:
 
 
 def cmd_web(args) -> int:
-    """Jalankan web dashboard yang terintegrasi dengan bot scraping."""
-    from webapp.app import app as web_app
+    """Jalankan web dashboard Django."""
+    import os
+    import django
+    from django.core.management import call_command
+
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "transkrip_project.settings")
+    django.setup()
 
     port = args.port
     host = args.host
     if args.open:
         threading.Timer(1.0, webbrowser.open, args=(f"http://{host}:{port}/",)).start()
     print(f"[web] Dashboard: http://{host}:{port}/  (Ctrl+C untuk berhenti)")
-    web_app.run(
-        host=host,
-        port=port,
-        debug=args.debug,
-        threaded=True,
-        use_reloader=False,
-    )
+    call_command("runserver", f"{host}:{port}", use_reloader=False)
     return 0
 
 
@@ -826,6 +825,11 @@ def build_parser() -> argparse.ArgumentParser:
     yu.add_argument("--sheet", help="nama sheet Excel; default sheet aktif")
     yu.add_argument("--url", help="URL halaman tambah mahasiswa yang aktif pada sesi eCampuz ini")
     yu.add_argument("--campaign-id", help="ID sesi yudisium untuk checkpoint; default diambil dari URL target")
+    yu.add_argument(
+        "--registration-date",
+        default="31-03-2023",
+        help="Tanggal Daftar eCampuz format DD-MM-YYYY (default: 31-03-2023)",
+    )
     yu.add_argument("--limit", type=int, help="batas jumlah mahasiswa; wajib untuk submit")
     yu.add_argument("--submit", action="store_true", help="izinkan submit setelah konfirmasi teks eksplisit")
     yu.add_argument("--retry-failed", action="store_true", help="coba ulang baris yang gagal sebelum submit")

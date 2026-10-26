@@ -25,8 +25,8 @@ IMPORT_HEADERS = [
 ]
 _ALLOWED_STATUS = {"lulus", "belum lulus"}
 _ALLOWED_PATHS = {"skripsi", "non skripsi"}
-_ALLOWED_DIPLOMA_CODES = {"a", "b"}
-_DATE_FORMATS = ("%d-%m-%Y", "%d/%m/%Y")
+_DATE_FORMATS = ("%d-%m-%Y",)
+_IJAZAH_RE = re.compile(r"^[0-9A-Za-z][0-9A-Za-z./-]{2,99}$")
 
 
 def build_graduation_template() -> bytes:
@@ -63,9 +63,11 @@ def build_graduation_template() -> bytes:
         "align: horiz center, vert center; borders: bottom thin, bottom_colour gray25",
         num_format_str="0",
     )
-    date_style = xlwt.easyxf(
+    # eCampuz rejects real Excel date cells during kelulusan import. Keep the
+    # template date columns as text so typed values are sent as dd-mm-yyyy.
+    date_text_style = xlwt.easyxf(
         "align: vert center; borders: bottom thin, bottom_colour gray25",
-        num_format_str="DD-MM-YYYY",
+        num_format_str="@",
     )
 
     sheet.write_merge(0, 0, 0, 11, "DAFTAR MAHASISWA LULUS", title_style)
@@ -84,27 +86,28 @@ def build_graduation_template() -> bytes:
     sheet.write(2, 6, "No Surat Yudisium", guide_style)
     sheet.write(2, 7, "Tanggal Keluar/Lulus", guide_style)
     sheet.write(2, 8, "Jalur Lulus", guide_style)
+    sheet.write(2, 9, "Nomor Ijazah", guide_style)
     sheet.write(2, 10, "Tanggal Ijazah", guide_style)
     sheet.write(2, 11, "No Ijazah Lain", guide_style)
     for column, value in {
         3: "Lulus / Belum Lulus",
-        4: "Contoh: Gasal 2026-2027",
-        5: "dd-mm-yyyy",
+        4: "Contoh: Ganjil 2026-2027",
+        5: "Teks dd-mm-yyyy",
         6: "Nomor surat / teks",
-        7: "dd-mm-yyyy",
+        7: "Teks dd-mm-yyyy",
         8: "Skripsi / Non Skripsi",
-        9: "A / B",
-        10: "dd-mm-yyyy",
+        9: "142012023000112",
+        10: "Teks dd-mm-yyyy",
         11: "Opsional, teks",
     }.items():
         sheet.write(3, column, value, guide_example_style)
     sheet.write(4, 3, "Isi status persis sesuai pilihan.", guide_example_style)
     sheet.write(4, 4, "Contoh format semester.", guide_example_style)
-    sheet.write(4, 5, "Contoh: 10-03-2027", guide_example_style)
-    sheet.write(4, 7, "Contoh: 10-03-2027", guide_example_style)
+    sheet.write(4, 5, "Teks, contoh: 10-03-2027", guide_example_style)
+    sheet.write(4, 7, "Teks, contoh: 10-03-2027", guide_example_style)
     sheet.write(4, 8, "Pilih salah satu jalur.", guide_example_style)
-    sheet.write(4, 9, "Kode ijazah A atau B.", guide_example_style)
-    sheet.write(4, 10, "Contoh: 10-03-2027", guide_example_style)
+    sheet.write(4, 9, "Nomor ijazah PDDIKTI/Neo Feeder (bukan A/B).", guide_example_style)
+    sheet.write(4, 10, "Teks, contoh: 10-03-2027", guide_example_style)
     sheet.write_merge(
         4,
         4,
@@ -132,10 +135,92 @@ def build_graduation_template() -> bytes:
         for column in (3, 4, 6, 8, 9, 11):
             sheet.write(row_index, column, "", text_style)
         for column in (5, 7, 10):
-            sheet.write(row_index, column, "", date_style)
+            sheet.write(row_index, column, "", date_text_style)
 
     output = io.BytesIO()
     workbook.save(output)
+    return output.getvalue()
+
+
+def build_roster_template() -> bytes:
+    """Return a clean .xlsx workbook with student roster headers and example data."""
+    import openpyxl
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+    from openpyxl.utils import get_column_letter
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Roster Yudisium"
+
+    headers = [
+        "No",
+        "NIM",
+        "Nama Mahasiswa",
+        "Program Studi",
+        "Angkatan",
+        "Keterangan",
+    ]
+
+    header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="1E3A8A", end_color="1E3A8A", fill_type="solid")
+    header_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+    data_font = Font(name="Calibri", size=11)
+    center_align = Alignment(horizontal="center", vertical="center")
+    left_align = Alignment(horizontal="left", vertical="center")
+
+    thin_border = Border(
+        left=Side(style="thin", color="CBD5E1"),
+        right=Side(style="thin", color="CBD5E1"),
+        top=Side(style="thin", color="CBD5E1"),
+        bottom=Side(style="thin", color="CBD5E1"),
+    )
+
+    ws.row_dimensions[1].height = 26
+
+    for col_idx, header in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=col_idx, value=header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_align
+        cell.border = thin_border
+
+    sample_data = [
+        (1, "2021010001", "Ahmad Fadillah", "Informatika", 2021, "Siap Daftar"),
+        (2, "2021010002", "Siti Nurhaliza", "Sistem Informasi", 2021, "Siap Daftar"),
+        (3, "2021010003", "Budi Santoso", "Informatika", 2021, "Siap Daftar"),
+    ]
+
+    for row_idx, row_values in enumerate(sample_data, start=2):
+        ws.row_dimensions[row_idx].height = 20
+        for col_idx, value in enumerate(row_values, start=1):
+            cell = ws.cell(row=row_idx, column=col_idx)
+            cell.font = data_font
+            cell.border = thin_border
+            if col_idx == 2:
+                cell.number_format = "@"
+                cell.value = str(value)
+                cell.alignment = center_align
+            elif col_idx in (1, 5):
+                cell.value = value
+                cell.alignment = center_align
+            else:
+                cell.value = str(value)
+                cell.alignment = left_align
+
+    col_widths = {
+        1: 8,
+        2: 18,
+        3: 28,
+        4: 24,
+        5: 14,
+        6: 22,
+    }
+    for col_idx, width in col_widths.items():
+        ws.column_dimensions[get_column_letter(col_idx)].width = width
+
+    output = io.BytesIO()
+    wb.save(output)
     return output.getvalue()
 
 
@@ -157,14 +242,12 @@ def _valid_date(value: Any, cell_type: int, datemode: int) -> bool:
 
     if value in (None, ""):
         return True
+    # eCampuz menolak sel tanggal Excel pada import kelulusan; template
+    # memakai sel teks dan validator harus menolak format sel tanggal juga.
     if cell_type == xlrd.XL_CELL_DATE:
-        try:
-            xlrd.xldate_as_datetime(value, datemode)
-            return True
-        except (ValueError, OverflowError):
-            return False
+        return False
     text = str(value).strip()
-    if not re.fullmatch(r"(?:\d{2}-\d{2}-\d{4}|\d{2}/\d{2}/\d{4})", text):
+    if not re.fullmatch(r"\d{2}-\d{2}-\d{4}", text):
         return False
     for fmt in _DATE_FORMATS:
         try:
@@ -173,6 +256,15 @@ def _valid_date(value: Any, cell_type: int, datemode: int) -> bool:
         except ValueError:
             continue
     return False
+
+
+def _valid_ijazah_number(value: Any) -> bool:
+    text = str(value or "").strip()
+    if not text or text.casefold() in {"a", "b"}:
+        return False
+    if not any(ch.isdigit() for ch in text):
+        return False
+    return bool(_IJAZAH_RE.fullmatch(text))
 
 
 def validate_graduation_import(
@@ -272,7 +364,7 @@ def validate_graduation_import(
         if status == "lulus":
             semester = row[4]
             if not semester or not re.search(r"\d{4}\s*[-/]\s*\d{4}", semester):
-                record_errors.append({"row": excel_row, "field": IMPORT_HEADERS[4], "message": "Untuk status Lulus, isi semester seperti 'Gasal 2026-2027'."})
+                record_errors.append({"row": excel_row, "field": IMPORT_HEADERS[4], "message": "Untuk status Lulus, isi semester seperti 'Ganjil 2026-2027'."})
             for col in (5, 7, 10):
                 if not row[col]:
                     record_errors.append({"row": excel_row, "field": IMPORT_HEADERS[col], "message": "Tanggal wajib diisi untuk status Lulus."})
@@ -283,16 +375,16 @@ def validate_graduation_import(
                     record_errors.append({"row": excel_row, "field": IMPORT_HEADERS[col], "message": "Nomor surat yudisium wajib diisi untuk status Lulus."})
             if row[8].casefold() not in _ALLOWED_PATHS:
                 record_errors.append({"row": excel_row, "field": IMPORT_HEADERS[8], "message": "Isi tepat 'Skripsi' atau 'Non Skripsi'."})
-            if row[9].casefold() not in _ALLOWED_DIPLOMA_CODES:
-                record_errors.append({"row": excel_row, "field": IMPORT_HEADERS[9], "message": "Isi kode ijazah 'A' atau 'B'."})
+            if not _valid_ijazah_number(row[9]):
+                record_errors.append({"row": excel_row, "field": IMPORT_HEADERS[9], "message": "Isi nomor ijazah PDDIKTI/Neo Feeder (bukan kode A/B)."})
         else:
             for col in (5, 7, 10):
                 if row[col] and not _valid_date(raw[col], types[col], workbook.datemode):
                     record_errors.append({"row": excel_row, "field": IMPORT_HEADERS[col], "message": "Gunakan format tanggal dd-mm-yyyy."})
             if row[8] and row[8].casefold() not in _ALLOWED_PATHS:
                 record_errors.append({"row": excel_row, "field": IMPORT_HEADERS[8], "message": "Isi tepat 'Skripsi' atau 'Non Skripsi'."})
-            if row[9] and row[9].casefold() not in _ALLOWED_DIPLOMA_CODES:
-                record_errors.append({"row": excel_row, "field": IMPORT_HEADERS[9], "message": "Isi kode ijazah 'A' atau 'B'."})
+            if row[9] and not _valid_ijazah_number(row[9]):
+                record_errors.append({"row": excel_row, "field": IMPORT_HEADERS[9], "message": "Isi nomor ijazah PDDIKTI/Neo Feeder (bukan kode A/B)."})
 
         errors.extend(record_errors)
         records.append({"row": excel_row, "nim": nim, "status": row[3], "errors": len(record_errors)})

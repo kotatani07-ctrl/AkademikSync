@@ -18,6 +18,7 @@ import dashboard.services.data as d
 from dashboard.services.transcript_export import build_transcript_export
 from dashboard.services.yudisium_import import (
     build_graduation_template,
+    build_roster_template,
     validate_graduation_import,
 )
 from dashboard.services.grade_entry import (
@@ -167,8 +168,14 @@ def scrape(request):
 
 @login_required
 def yudisium_page(request):
+    cfg = d.web_config()
     return render(request, "dashboard/yudisium.html", {
         "job": jobs._yudisium_snapshot(),
+        "last_url": cfg.get("yudisium_last_url", ""),
+        "last_campaign": cfg.get("yudisium_last_campaign", ""),
+        "last_registration_date": cfg.get(
+            "yudisium_last_registration_date", "31-03-2023"
+        ),
     })
 
 
@@ -366,6 +373,16 @@ def api_yudisium_template(request):
     )
 
 
+@login_required
+def api_yudisium_roster_template(request):
+    content = build_roster_template()
+    return _json_file(
+        content,
+        "Template_Roster_Pendaftaran_Yudisium.xlsx",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+
 @csrf_exempt
 @login_required
 def api_yudisium_validate_import(request):
@@ -429,6 +446,8 @@ def api_grade_entry_preview(request):
 def api_yudisium_start(request):
     if not _is_local_operator_request(request):
         return JsonResponse({"ok": False, "message": "Aksi yudisium hanya tersedia dari browser lokal."}, status=403)
+    if request.method != "POST":
+        return JsonResponse({"ok": False, "message": "Metode tidak diizinkan."}, status=405)
     payload = _json_body(request)
     token = str(payload.get("upload_id", ""))
     uploaded = jobs.YUDI_UPLOADS.get(token)
@@ -456,6 +475,14 @@ def api_yudisium_start(request):
 
     if not jobs._start_yudisium_job(params):
         return JsonResponse({"ok": False, "message": "Pekerjaan lain sedang berjalan."}, status=409)
+    try:
+        cfg = d.web_config()
+        cfg["yudisium_last_url"] = params["url"]
+        cfg["yudisium_last_campaign"] = params["campaign_id"]
+        cfg["yudisium_last_registration_date"] = params["registration_date"]
+        d.save_web_config(cfg)
+    except Exception:
+        pass
     jobs.YUDI_UPLOADS.pop(token, None)
     return JsonResponse({"ok": True, "message": "Batch yudisium dimulai.", "log_file": str(params["log_file"])})
 
@@ -465,11 +492,35 @@ def api_yudisium_start(request):
 def api_yudisium_continue(request):
     if not _is_local_operator_request(request):
         return JsonResponse({"ok": False, "message": "Aksi yudisium hanya tersedia dari browser lokal."}, status=403)
+    if request.method != "POST":
+        return JsonResponse({"ok": False, "message": "Metode tidak diizinkan."}, status=405)
     with jobs.JOB_LOCK:
         if not jobs.YUDI_JOB_STATE["running"] or not jobs.YUDI_JOB_STATE["awaiting_manual_login"]:
             return JsonResponse({"ok": False, "message": "Bot tidak sedang menunggu login manual."}, status=409)
         jobs.YUDI_JOB_EVENT.set()
     return JsonResponse({"ok": True, "message": "Bot melanjutkan proses."})
+
+
+@csrf_exempt
+@login_required
+def api_yudisium_abort(request):
+    if not _is_local_operator_request(request):
+        return JsonResponse({"ok": False, "message": "Aksi yudisium hanya tersedia dari browser lokal."}, status=403)
+    if request.method != "POST":
+        return JsonResponse({"ok": False, "message": "Metode tidak diizinkan."}, status=405)
+    was_running = jobs.abort_yudisium_job()
+    if was_running:
+        message = (
+            "Permintaan batal dikirim. Tunggu worker browser berhenti sebelum "
+            "memulai batch baru."
+        )
+    else:
+        message = "Tidak ada batch yudisium yang sedang berjalan."
+    return JsonResponse({
+        "ok": True,
+        "was_running": was_running,
+        "message": message,
+    })
 
 
 @login_required

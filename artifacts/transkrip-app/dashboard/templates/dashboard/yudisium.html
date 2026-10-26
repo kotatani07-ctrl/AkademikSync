@@ -6,11 +6,17 @@
     <h1>Pendaftaran Yudisium</h1>
     <div class="sub">Data entry berurutan dari roster NIM yang sudah disetujui admin.</div>
   </div>
-  <span id="job-badge" class="badge gray">{{ job.message }}</span>
+  <span id="job-badge" class="badge gray" data-running="{{ job.running|yesno:'true,false' }}">{{ job.message }}</span>
 </div>
 
 <div class="panel">
-  <div class="p-head">1. Roster mahasiswa</div>
+  <div class="p-head">
+    <span>1. Roster mahasiswa</span>
+    <a class="btn small ghost" href="{% url 'dashboard:api_yudisium_roster_template' %}">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px;margin-right:4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Unduh template roster (.xlsx)
+    </a>
+  </div>
   <div class="p-body">
     <form class="webform" id="upload-form">
       <div>
@@ -29,7 +35,7 @@
         <button id="btn-preview" type="submit">Validasi &amp; preview</button>
       </div>
     </form>
-    <p class="hint" id="upload-message">File hanya dipakai sebagai roster; bot tidak menilai kelayakan akademik.</p>
+    <p class="hint" id="upload-message">Format didukung: <strong>.xlsx</strong>, <strong>.xlsm</strong>, atau <strong>.csv</strong>. Gunakan tombol <em>"Unduh template roster"</em> di atas untuk format standar yang siap dibaca oleh bot.</p>
   </div>
 </div>
 
@@ -49,12 +55,13 @@
   <div class="p-body">
     <form class="webform" id="run-form">
       <div style="grid-column:1/-1">
-        <label for="registration-url">URL halaman Tambah - Mahasiswa Lain pada sesi eCampuz aktif</label>
-        <input id="registration-url" name="url" type="url" placeholder="https://.../kelulusan/?act=...&amp;w=..." required>
+        <label for="registration-url">URL halaman Tambah - Mahasiswa Lain (atau menu Pendaftaran Yudisium) pada sesi eCampuz aktif</label>
+        <input id="registration-url" name="url" type="url" value="{{ last_url }}" placeholder="https://.../kelulusan/?act=...&amp;w=..." required>
+        <p class="hint">Token <code>act</code> dapat berubah setelah login ulang. Jika URL lama hanya membuka menu, bot akan mencari URL Tambah yang aktif secara otomatis.</p>
       </div>
       <div>
-        <label for="limit">Maksimum NIM batch ini (maks. 50)</label>
-        <input id="limit" name="limit" type="number" min="1" max="50" value="1" required>
+        <label for="limit">Maksimum NIM batch ini (maks. 100)</label>
+        <input id="limit" name="limit" type="number" min="1" max="100" value="1" required>
       </div>
       <div>
         <label for="delay">Jeda antar mahasiswa (detik)</label>
@@ -62,7 +69,11 @@
       </div>
       <div>
         <label for="campaign-id">ID periode/sesi yudisium</label>
-        <input id="campaign-id" name="campaign_id" type="text" placeholder="Contoh: Ganjil 2026/2027" required>
+        <input id="campaign-id" name="campaign_id" type="text" value="{{ last_campaign }}" placeholder="Contoh: Ganjil 2026/2027" required>
+      </div>
+      <div>
+        <label for="registration-date">Tanggal Daftar (DD-MM-YYYY)</label>
+        <input id="registration-date" name="registration_date" type="text" value="{{ last_registration_date }}" placeholder="31-03-2023" inputmode="numeric" required>
       </div>
       <div class="chk">
         <input id="retry-failed" name="retry_failed" type="checkbox">
@@ -76,8 +87,9 @@
         <input id="approved" name="approved" type="checkbox" required>
         <label for="approved" style="display:inline;margin:0">Saya memastikan roster sudah diverifikasi admin dan berwenang menjalankan pendaftaran.</label>
       </div>
-      <div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
         <button id="btn-run" type="submit" disabled>Mulai pendaftaran</button>
+        <button id="btn-reset-form" type="button" class="btn danger" style="padding:10px 18px;">Batalkan / Reset Job</button>
       </div>
     </form>
     <p class="hint" id="run-readiness" aria-live="polite">Validasi roster, lengkapi URL/periode, centang kewenangan, lalu ketik frasa konfirmasi.</p>
@@ -110,16 +122,25 @@
   </div>
 </div>
 
-<div class="panel" id="manual-panel" hidden>
+<div class="panel" id="manual-panel" {% if not job.awaiting_manual_login %}hidden{% endif %}>
   <div class="p-head">Perlu login manual</div>
   <div class="p-body">
     <p id="manual-message">Selesaikan login dan CAPTCHA pada jendela browser bot. Setelah itu, buka halaman Tambah - Mahasiswa Lain untuk sesi aktif.</p>
-    <button id="btn-continue" type="button">Saya sudah login, lanjutkan</button>
+    <div style="display:flex;gap:10px;align-items:center;">
+      <button id="btn-continue" type="button">Saya sudah login, lanjutkan</button>
+      <button id="btn-manual-abort" class="btn danger" type="button">Batalkan batch</button>
+    </div>
   </div>
 </div>
 
 <div class="panel">
-  <div class="p-head">Status dan log <a id="log-download" class="btn small ghost" href="{% url 'dashboard:api_yudisium_log' %}" hidden>Unduh CSV log</a></div>
+  <div class="p-head" style="display:flex;justify-content:space-between;align-items:center;">
+    <span>Status dan log</span>
+    <div style="display:inline-flex;gap:8px;align-items:center;">
+      <button id="btn-abort" class="btn small danger" type="button">Batalkan / Reset Job</button>
+      <a id="log-download" class="btn small ghost" href="{% url 'dashboard:api_yudisium_log' %}" hidden>Unduh CSV log</a>
+    </div>
+  </div>
   <div class="p-body">
     <pre class="log" id="job-log">{% if job.log %}{{ job.log|join:"\n" }}{% else %}Belum ada batch yudisium.{% endif %}</pre>
   </div>
@@ -129,6 +150,7 @@
 var uploadId = null;
 var pollHandle = null;
 var badge = document.getElementById('job-badge');
+var jobRunning = badge ? badge.dataset.running === 'true' : false;
 var logBox = document.getElementById('job-log');
 var runButton = document.getElementById('btn-run');
 var confirmationInput = document.getElementById('confirmation');
@@ -136,20 +158,24 @@ var limitInput = document.getElementById('limit');
 var previewPanel = document.getElementById('preview-panel');
 var registrationUrlInput = document.getElementById('registration-url');
 var campaignInput = document.getElementById('campaign-id');
+var registrationDateInput = document.getElementById('registration-date');
 var approvedInput = document.getElementById('approved');
 
 function expectedPhrase() {
-  return 'DAFTAR YUDISIUM ' + limitInput.value;
+  var limit = parseInt(limitInput.value, 10);
+  return 'DAFTAR YUDISIUM ' + (Number.isFinite(limit) ? limit : 0);
 }
 
 function updateRunAvailability() {
   var limit = Number(limitInput.value);
-  var validLimit = Number.isInteger(limit) && limit >= 1 && limit <= 50;
+  var validLimit = Number.isInteger(limit) && limit >= 1 && limit <= 100;
   var missing = [];
+  if (jobRunning) missing.push('job yudisium sedang berjalan');
   if (!uploadId) missing.push('validasi roster');
   if (!registrationUrlInput.value.trim()) missing.push('URL sesi eCampuz');
   if (!campaignInput.value.trim()) missing.push('ID periode yudisium');
-  if (!validLimit) missing.push('batas batch 1-50');
+  if (!/^\d{2}-\d{2}-\d{4}$/.test(registrationDateInput.value.trim())) missing.push('tanggal daftar DD-MM-YYYY');
+  if (!validLimit) missing.push('batas batch 1-100');
   if (!approvedInput.checked) missing.push('centang kewenangan admin');
   if (confirmationInput.value.trim() !== expectedPhrase()) missing.push('ketik ' + expectedPhrase());
   runButton.disabled = missing.length > 0;
@@ -213,10 +239,32 @@ document.getElementById('upload-form').addEventListener('submit', function (even
   document.getElementById(id).addEventListener('change', invalidateRoster);
 });
 
+// LocalStorage caching untuk kemudahan user
+if (!registrationUrlInput.value.trim()) {
+  try {
+    var savedUrl = localStorage.getItem('yudisium_url');
+    if (savedUrl) registrationUrlInput.value = savedUrl;
+  } catch (e) {}
+}
+if (!campaignInput.value.trim()) {
+  try {
+    var savedCamp = localStorage.getItem('yudisium_campaign');
+    if (savedCamp) campaignInput.value = savedCamp;
+  } catch (e) {}
+}
+
+registrationUrlInput.addEventListener('change', function () {
+  try { localStorage.setItem('yudisium_url', registrationUrlInput.value.trim()); } catch (e) {}
+});
+campaignInput.addEventListener('change', function () {
+  try { localStorage.setItem('yudisium_campaign', campaignInput.value.trim()); } catch (e) {}
+});
+
 limitInput.addEventListener('input', updateRunAvailability);
 confirmationInput.addEventListener('input', updateRunAvailability);
 registrationUrlInput.addEventListener('input', updateRunAvailability);
 campaignInput.addEventListener('input', updateRunAvailability);
+registrationDateInput.addEventListener('input', updateRunAvailability);
 approvedInput.addEventListener('change', updateRunAvailability);
 
 document.getElementById('run-form').addEventListener('submit', function (event) {
@@ -233,6 +281,7 @@ document.getElementById('run-form').addEventListener('submit', function (event) 
       limit: Number(limitInput.value),
       delay: Number(document.getElementById('delay').value),
       campaign_id: document.getElementById('campaign-id').value,
+      registration_date: document.getElementById('registration-date').value,
       retry_failed: document.getElementById('retry-failed').checked,
       approved: document.getElementById('approved').checked,
       confirmation: confirmationInput.value
@@ -246,6 +295,7 @@ document.getElementById('run-form').addEventListener('submit', function (event) 
     startPolling();
   }).catch(function (error) {
     showError(error.message);
+    document.getElementById('run-readiness').textContent = 'Gagal memulai: ' + error.message;
     runButton.disabled = false;
   });
 });
@@ -261,18 +311,73 @@ function refreshStatus() {
     if (state.log) logBox.textContent = state.log.join('\n');
     document.getElementById('manual-panel').hidden = !state.awaiting_manual_login;
     if (state.running) {
+      jobRunning = true;
       badge.textContent = state.message || 'berjalan';
       badge.className = 'badge info';
     } else if (state.finished) {
+      jobRunning = false;
       if (pollHandle) clearInterval(pollHandle);
       pollHandle = null;
-      badge.textContent = state.rc === 0 ? 'selesai' : (state.rc === 2 ? 'hasil perlu pemeriksaan' : 'gagal');
+      badge.textContent = state.rc === 0 ? 'selesai' : (state.rc === 2 ? 'hasil perlu pemeriksaan' : (state.message ? state.message : 'gagal'));
       badge.className = state.rc === 0 ? 'badge ok' : 'badge bad';
-      runButton.disabled = false;
       document.getElementById('log-download').hidden = !state.log_file;
+      if (uploadId) {
+        uploadId = null;
+        document.getElementById('upload-message').textContent = 'Batch selesai. Upload atau validasi ulang file roster jika ingin menjalankan batch berikutnya.';
+      }
+    } else {
+      jobRunning = false;
     }
+    updateRunAvailability();
   }).catch(function () {});
 }
+
+function abortBatch() {
+  if (!confirm('Hentikan batch yudisium ini? Worker browser akan berhenti setelah operasi saat ini selesai.')) return;
+  var btnAbort = document.getElementById('btn-abort');
+  var btnManualAbort = document.getElementById('btn-manual-abort');
+  var btnResetForm = document.getElementById('btn-reset-form');
+  if (btnAbort) btnAbort.disabled = true;
+  if (btnManualAbort) btnManualAbort.disabled = true;
+  if (btnResetForm) btnResetForm.disabled = true;
+  fetch('{% url "dashboard:api_yudisium_abort" %}', {
+    method: 'POST',
+    headers: {'X-CSRFToken': '{{ csrf_token }}'}
+  })
+    .then(function (res) { return res.json(); })
+    .then(function (data) {
+      if (!data.ok) throw new Error(data.message || 'Gagal membatalkan job.');
+      document.getElementById('manual-panel').hidden = true;
+      if (data.was_running) {
+        runButton.disabled = true;
+        badge.textContent = 'menghentikan...';
+        badge.className = 'badge info';
+        alert(data.message);
+        startPolling();
+      } else {
+        runButton.disabled = false;
+        badge.textContent = 'tidak ada batch';
+        badge.className = 'badge gray';
+        alert(data.message);
+        refreshStatus();
+      }
+    })
+    .catch(function (err) {
+      alert(err.message);
+    })
+    .finally(function () {
+      if (btnAbort) btnAbort.disabled = false;
+      if (btnManualAbort) btnManualAbort.disabled = false;
+      if (btnResetForm) btnResetForm.disabled = false;
+    });
+}
+
+var btnAbortEl = document.getElementById('btn-abort');
+if (btnAbortEl) btnAbortEl.addEventListener('click', abortBatch);
+var btnManualAbortEl = document.getElementById('btn-manual-abort');
+if (btnManualAbortEl) btnManualAbortEl.addEventListener('click', abortBatch);
+var btnResetFormEl = document.getElementById('btn-reset-form');
+if (btnResetFormEl) btnResetFormEl.addEventListener('click', abortBatch);
 
 document.getElementById('btn-continue').addEventListener('click', function (event) {
   var button = event.currentTarget;
@@ -327,7 +432,9 @@ document.getElementById('graduation-validate-form').addEventListener('submit', f
     .finally(function () { button.disabled = false; });
 });
 
-{% if job.running %}startPolling();{% endif %}
+if (jobRunning) {
+  startPolling();
+}
 updateRunAvailability();
 </script>
 {% endblock %}
